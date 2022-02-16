@@ -1790,6 +1790,7 @@ class SearchesFrame(UserInterface):
             "searches": {
                 "maxresults": self.MaxResults,
                 "enablefilters": self.EnableFilters,
+                "filter_show": None,
                 "defilter": None,
                 "search_results": self.ToggleResults,
                 "max_displayed_results": self.MaxDisplayedResults,
@@ -1805,6 +1806,38 @@ class SearchesFrame(UserInterface):
         searches = config.sections["searches"]
         self.preferences.set_widgets_data(self.options)
         self.search_required = False
+
+        if searches["filter_show"] is not None:
+            num_filter_show = len(searches["filter_show"])
+
+            if num_filter_show > 0:
+                self.ShowFilterIn.set_active(searches["filter_show"][0])
+
+            if num_filter_show > 1:
+                self.ShowFilterOut.set_active(searches["filter_show"][1])
+
+            if num_filter_show > 2:
+                self.ShowFilterSize.set_active(searches["filter_show"][2])
+
+            if num_filter_show > 3:
+                self.ShowFilterBR.set_active(searches["filter_show"][3])
+
+            if num_filter_show > 4:
+                self.ShowFilterFree.set_active(searches["filter_show"][4])
+
+            if num_filter_show > 5:
+                self.ShowFilterCC.set_active(searches["filter_show"][5])
+
+            if num_filter_show > 6:
+                self.ShowFilterType.set_active(searches["filter_show"][6])
+
+            if num_filter_show > 7:
+                self.ShowFilterLength.set_active(searches["filter_show"][7])
+
+            # TODO:
+            # set_property(self.frame.np.Searches.FiltersFlowBox, "max-children-per-line", num_filter_show)
+            # FiltersFlowBox <property name="max-children-per-line">7</property>
+
 
         if searches["defilter"] is not None:
             num_filters = len(searches["defilter"])
@@ -1830,6 +1863,9 @@ class SearchesFrame(UserInterface):
             if num_filters > 6:
                 self.FilterType.set_text(str(searches["defilter"][6]))
 
+            if num_filters > 7:
+                self.FilterLength.set_text(str(searches["defilter"][7]))
+
         self.ClearSearchHistorySuccess.hide()
         self.ClearFilterHistorySuccess.hide()
 
@@ -1841,6 +1877,16 @@ class SearchesFrame(UserInterface):
             "searches": {
                 "maxresults": self.MaxResults.get_value_as_int(),
                 "enablefilters": self.EnableFilters.get_active(),
+                "filter_show": [
+                    self.ShowFilterIn.get_active(),
+                    self.ShowFilterOut.get_active(),
+                    self.ShowFilterSize.get_active(),
+                    self.ShowFilterBR.get_active(),
+                    self.ShowFilterFree.get_active(),
+                    self.ShowFilterCC.get_active(),
+                    self.ShowFilterType.get_active(),
+                    self.ShowFilterLength.get_active()
+                ],
                 "defilter": [
                     self.FilterIn.get_text(),
                     self.FilterOut.get_text(),
@@ -1848,7 +1894,8 @@ class SearchesFrame(UserInterface):
                     self.FilterBR.get_text(),
                     self.FilterFree.get_active(),
                     self.FilterCC.get_text(),
-                    self.FilterType.get_text()
+                    self.FilterType.get_text(),
+                    self.FilterLength.get_text()
                 ],
                 "search_results": self.ToggleResults.get_active(),
                 "max_displayed_results": self.MaxDisplayedResults.get_value_as_int(),
