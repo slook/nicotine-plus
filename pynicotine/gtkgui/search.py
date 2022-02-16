@@ -813,15 +813,23 @@ class Search(UserInterface):
         value = value.upper()
         allowed = False
 
-        for country_code in sfilter.split("|"):
-            if country_code == value:
+        for condition in sfilter.split("|"):
+            if condition.startswith("!"):
+                used_operator, country_code = "!=", condition[1:].rstrip()
+            else:
+                used_operator, country_code = "==", condition.rstrip()  # default
+
+            if not country_code:
+                continue
+
+            if used_operator == "!=" and country_code != value:
                 allowed = True
 
-            elif country_code.startswith("!") and country_code[1:] != value:
-                allowed = True
-
-            elif country_code.startswith("!") and country_code[1:] == value:
+            elif used_operator == "!=" and country_code == value:
                 return False
+
+            elif used_operator == "==" and country_code == value:
+                return True
 
         return allowed
 
