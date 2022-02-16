@@ -327,7 +327,7 @@
                                   <object class="GtkEntry">
                                     <property name="width-chars">12</property>
                                     <property name="placeholder-text" translatable="yes">Country code…</property>
-                                    <property name="tooltip-text" translatable="yes">Country code, e.g. US|GB|ES or !DE|!GB</property>
+                                    <property name="tooltip-text" translatable="yes">Country code, e.g. US|GB|ES|!DE|!FR|!NL</property>
                                     <property name="primary-icon-name">mark-location-symbolic</property>
                                     <signal name="activate" handler="on_refilter"/>
                                     <signal name="changed" handler="on_filter_entry_changed"/>
