@@ -189,6 +189,10 @@ class PrivateChat(UserInterface):
         self.offline_message = False
         self.status = 0
 
+        self.log_dir = ""
+        self.log_file = ""
+        self.log_path = ""
+
         if user in self.frame.np.user_statuses:
             self.status = self.frame.np.user_statuses[user] or 0
 
@@ -201,10 +205,6 @@ class PrivateChat(UserInterface):
         # Chat Entry
         ChatEntry(self.frame, self.ChatLine, chats.completion, user, slskmessages.MessageUser,
                   self.frame.np.privatechats.send_message, self.frame.np.privatechats.CMDS)
-
-        self.Log.set_active(config.sections["logging"]["privatechat"])
-
-        self.toggle_chat_buttons()
 
         self.popup_menu_user_chat = PopupMenu(self.frame, self.ChatScroll, connect_events=False)
         self.popup_menu_user_tab = PopupMenu(self.frame, None, self.on_popup_menu_user)
@@ -236,7 +236,15 @@ class PrivateChat(UserInterface):
         self.create_tags()
         self.update_visuals()
 
+        # Log and TTS config
+        self.toggle_chat_buttons()
+
         self.read_private_log()
+
+    def set_log_path(self):
+        self.log_dir = config.sections["logging"]["privatelogsdir"]
+        self.log_file = clean_file(self.user) + ".log"
+        self.log_path = os.path.join(self.log_dir, self.log_file)
 
     def read_private_log(self):
 
@@ -245,11 +253,11 @@ class PrivateChat(UserInterface):
         if not numlines:
             return
 
-        filename = clean_file(self.user) + ".log"
-        path = os.path.join(config.sections["logging"]["privatelogsdir"], filename)
+        if not os.path.exists(self.log_path):
+            return
 
         try:
-            self.append_log_lines(path, numlines)
+            self.append_log_lines(self.log_path, numlines)
         except OSError:
             pass
 
@@ -293,26 +301,71 @@ class PrivateChat(UserInterface):
         menu.actions[_("Copy")].set_enabled(self.chat_textview.get_has_selection())
         menu.actions[_("Copy Link")].set_enabled(bool(self.chat_textview.get_url_for_selected_pos()))
 
+        is_chat_log = os.path.exists(self.log_path)
+        menu.actions[_("View Chat Log")].set_enabled(is_chat_log)
+        menu.actions[_("Delete Chat Log…")].set_enabled(is_chat_log)
+
     def on_popup_menu_user(self, _menu, _widget):
         self.popup_menu_user_tab.toggle_user_items()
 
     def toggle_chat_buttons(self):
+        """ Init / Preferences """
+
+        self.set_log_path()
+
+        # 'Log Private Chats by default'
+        if config.sections["logging"]["privatechat"]:
+            self.Log.set_active(True)  # don't wipe out per-user chat Log toggle if unset
+
+        # 'Log Conversation'
+        if not self.Log.get_active():
+            self.Log.set_active(self.user in config.sections["logging"]["private_users"])
+
+        # 'TTS Enabled'
         self.Speech.set_visible(config.sections["ui"]["speechenabled"])
+
+    def on_log_toggled(self, widget):
+
+        if not widget.get_active():
+            if self.user in config.sections["logging"]["private_users"]:
+                config.sections["logging"]["private_users"].remove(self.user)
+            return
+
+        # 'Log Private Chats by default'
+        if config.sections["logging"]["privatechat"]:
+            return  # don't need list of private_users
+
+        # 'Log Conversation' - we need to remember on a per-user basis
+        if self.user not in config.sections["logging"]["private_users"]:
+            config.sections["logging"]["private_users"].append(self.user)
 
     def on_find_chat_log(self, *_args):
         self.SearchBar.set_search_mode(True)
 
     def on_view_chat_log(self, *_args):
-        open_log(config.sections["logging"]["privatelogsdir"], self.user)
+
+        if not os.path.exists(self.log_path):
+            # Avoid creating an empty file
+            return
+
+        open_log(self.log_dir, self.user)
 
     def on_delete_chat_log_response(self, dialog, response_id, _data):
 
         dialog.destroy()
 
         if response_id == 2:
-            delete_log(config.sections["logging"]["privatelogsdir"], self.user)
+            self.Log.set_active(False)
+
+            if self.user in config.sections["privatechat"]["users"]:
+                config.sections["privatechat"]["users"].remove(self.user)
+
+            if self.user in config.sections["logging"]["private_users"]:
+                config.sections["logging"]["private_users"].remove(self.user)
+
+            delete_log(self.log_dir, self.log_file)
             self.chats.history.remove_user(self.user)
-            self.chat_textview.clear()
+            self.clear_screen(timestamp_format=config.sections["logging"]["private_timestamp"])
 
     def on_delete_chat_log(self, *_args):
 
@@ -322,6 +375,10 @@ class PrivateChat(UserInterface):
             message=_('Do you really want to permanently delete all logged messages for this user?'),
             callback=self.on_delete_chat_log_response
         )
+
+    def clear_screen(self, timestamp_format=None):
+        self.chat_textview.clear()
+        self.chat_textview.append_line(_("--- cleared ---"), self.tag_hilite, timestamp_format=timestamp_format)
 
     def show_notification(self, text):
 
@@ -385,7 +442,7 @@ class PrivateChat(UserInterface):
             timestamp_format = config.sections["logging"]["log_timestamp"]
 
             self.chats.history.update_user(self.user, "%s %s" % (time.strftime(timestamp_format), line))
-            log.write_log(config.sections["logging"]["privatelogsdir"], self.user, line, timestamp, timestamp_format)
+            log.write_log(self.log_dir, self.user, line, timestamp, timestamp_format)
 
     def echo_message(self, text, message_type):
 
@@ -415,8 +472,7 @@ class PrivateChat(UserInterface):
             timestamp_format = config.sections["logging"]["log_timestamp"]
 
             self.chats.history.update_user(self.user, "%s %s" % (time.strftime(timestamp_format), line))
-            log.write_log(config.sections["logging"]["privatelogsdir"], self.user, line,
-                          timestamp_format=timestamp_format)
+            log.write_log(self.log_dir, self.user, line, timestamp_format=timestamp_format)
 
     def update_visuals(self):
 
