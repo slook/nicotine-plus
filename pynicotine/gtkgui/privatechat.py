@@ -331,13 +331,22 @@ class PrivateChat(UserInterface):
                 config.sections["logging"]["private_users"].remove(self.user)
             return
 
+        self.is_log_enabled()
+
+    def is_log_enabled(self):
+
         # 'Log Private Chats by default'
         if config.sections["logging"]["privatechat"]:
-            return  # don't need list of private_users
+            return self.Log.get_active() # don't need list of private_users
+
+        if not self.Log.get_active():
+            return False
 
         # 'Log Conversation' - we need to remember on a per-user basis
         if self.user not in config.sections["logging"]["private_users"]:
             config.sections["logging"]["private_users"].append(self.user)
+
+        return True
 
     def on_find_chat_log(self, *_args):
         self.SearchBar.set_search_mode(True)
@@ -525,6 +534,9 @@ class PrivateChat(UserInterface):
             self.chat_textview.update_tag(tag)
 
     def on_close(self, *_args):
+
+        # Remember toggle incase it was changed by default
+        self.is_log_enabled()
 
         self.frame.notifications.clear("private", self.user)
         del self.chats.pages[self.user]
