@@ -315,7 +315,7 @@ class PrivateChat(UserInterface):
 
         # 'Log Private Chats by default'
         if config.sections["logging"]["privatechat"]:
-            self.Log.set_active(True)  # don't wipe out per-user chat Log toggle if unset
+            self.Log.set_active(True)
 
         # 'Log Conversation'
         if not self.Log.get_active():
@@ -326,27 +326,24 @@ class PrivateChat(UserInterface):
 
     def on_log_toggled(self, widget):
 
-        if not widget.get_active():
-            if self.user in config.sections["logging"]["private_users"]:
-                config.sections["logging"]["private_users"].remove(self.user)
+        log_active = widget.get_active()
+
+        self.chat_textview.append_line(
+            _("--- chat history enabled ---") if log_active else _("--- chat history disabled ---"),
+            self.tag_hilite, timestamp_format=config.sections["logging"]["private_timestamp"]
+        )
+
+        # 'Log Private Chats by default' - don't need private_users config list
+        if config.sections["logging"]["privatechat"]:
             return
 
-        self.is_log_enabled()
-
-    def is_log_enabled(self):
-
-        # 'Log Private Chats by default'
-        if config.sections["logging"]["privatechat"]:
-            return self.Log.get_active() # don't need list of private_users
-
-        if not self.Log.get_active():
-            return False
-
-        # 'Log Conversation' - we need to remember on a per-user basis
-        if self.user not in config.sections["logging"]["private_users"]:
-            config.sections["logging"]["private_users"].append(self.user)
-
-        return True
+        # 'Log Conversation' - remember toggle state on a per-user basis
+        if log_active:
+            if self.user not in config.sections["logging"]["private_users"]:
+                config.sections["logging"]["private_users"].append(self.user)
+        else:
+            if self.user in config.sections["logging"]["private_users"]:
+                config.sections["logging"]["private_users"].remove(self.user)
 
     def on_find_chat_log(self, *_args):
         self.SearchBar.set_search_mode(True)
@@ -534,9 +531,6 @@ class PrivateChat(UserInterface):
             self.chat_textview.update_tag(tag)
 
     def on_close(self, *_args):
-
-        # Remember toggle incase it was changed by default
-        self.is_log_enabled()
 
         self.frame.notifications.clear("private", self.user)
         del self.chats.pages[self.user]
