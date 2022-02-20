@@ -2976,7 +2976,7 @@ class Preferences(UserInterface):
 
         # Chatrooms
         self.frame.chatrooms.toggle_chat_buttons()
-        self.frame.privatechat.toggle_chat_buttons()
+        self.frame.privatechat.set_chat_buttons()
         self.frame.np.privatechats.save_users()
 
         # Transfers
