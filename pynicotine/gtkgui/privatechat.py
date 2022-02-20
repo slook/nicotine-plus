@@ -143,9 +143,9 @@ class PrivateChats(IconNotebook):
         if page is not None:
             page.message_user(msg)
 
-    def toggle_chat_buttons(self):
+    def set_chat_buttons(self):
         for page in self.pages.values():
-            page.toggle_chat_buttons()
+            page.set_chat_buttons()
 
     def set_completion_list(self, completion_list):
 
@@ -237,9 +237,23 @@ class PrivateChat(UserInterface):
         self.update_visuals()
 
         # Log and TTS config
-        self.toggle_chat_buttons()
+        self.set_chat_buttons()
 
         self.read_private_log()
+
+    def set_chat_buttons(self):
+        """ Init / Preferences """
+
+        # Logging Preferences
+        self.set_log_path()
+
+        if config.sections["logging"]["privatechat"]:  # 'Log Private Chats by default'
+            self.Log.set_active(True)
+        else:
+            self.Log.set_active(self.user in config.sections["logging"]["private_users"])  # 'Log'
+
+        # Text-to-Speech Preferences
+        self.Speech.set_visible(config.sections["ui"]["speechenabled"])  # 'TTS Enabled'
 
     def set_log_path(self):
         self.log_dir = config.sections["logging"]["privatelogsdir"]
@@ -308,22 +322,6 @@ class PrivateChat(UserInterface):
     def on_popup_menu_user(self, _menu, _widget):
         self.popup_menu_user_tab.toggle_user_items()
 
-    def toggle_chat_buttons(self):
-        """ Init / Preferences """
-
-        self.set_log_path()
-
-        # 'Log Private Chats by default'
-        if config.sections["logging"]["privatechat"]:
-            self.Log.set_active(True)
-
-        # 'Log Conversation'
-        if not self.Log.get_active():
-            self.Log.set_active(self.user in config.sections["logging"]["private_users"])
-
-        # 'TTS Enabled'
-        self.Speech.set_visible(config.sections["ui"]["speechenabled"])
-
     def on_log_toggled(self, widget):
 
         log_active = widget.get_active()
@@ -371,7 +369,7 @@ class PrivateChat(UserInterface):
 
             delete_log(self.log_dir, self.log_file)
             self.chats.history.remove_user(self.user)
-            self.clear_screen(timestamp_format=config.sections["logging"]["private_timestamp"])
+            self.chat_textview.on_clear_all_text()
 
     def on_delete_chat_log(self, *_args):
 
@@ -381,10 +379,6 @@ class PrivateChat(UserInterface):
             message=_('Do you really want to permanently delete all logged messages for this user?'),
             callback=self.on_delete_chat_log_response
         )
-
-    def clear_screen(self, timestamp_format=None):
-        self.chat_textview.clear()
-        self.chat_textview.append_line(_("--- cleared ---"), self.tag_hilite, timestamp_format=timestamp_format)
 
     def show_notification(self, text):
 
