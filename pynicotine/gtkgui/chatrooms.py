@@ -1072,6 +1072,11 @@ class ChatRoom(UserInterface):
 
         return None
 
+    def on_speech_toggled(self, widget):
+
+        if not widget.get_active():
+            self.frame.np.notifications.stop_tts()
+
     def on_log_toggled(self, widget):
 
         if not widget.get_active():
