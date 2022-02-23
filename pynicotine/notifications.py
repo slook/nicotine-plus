@@ -113,6 +113,11 @@ class Notifications:
             self.continue_playing = False
             self.play_tts()
 
+    def stop_tts(self):
+
+        self.continue_playing = False
+        self.tts.clear()
+
     @staticmethod
     def tts_clean_message(message):
 
