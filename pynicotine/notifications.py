@@ -37,6 +37,7 @@ class Notifications:
         self.tts = []
         self.tts_playing = False
         self.continue_playing = False
+        self.last_room = self.last_user = self.last_message = None
 
         if hasattr(ui_callback, "notifications"):
             self.ui_callback = ui_callback.notifications
@@ -74,10 +75,41 @@ class Notifications:
 
     """ TTS """
 
-    def new_tts(self, message, args=None):
+    def chat_tts(self, room=None, user=None, message=""):
 
         if not self.config.sections["ui"]["speechenabled"]:
             return
+
+        if room:
+            speech_format = self.config.sections["ui"]["speechrooms"]
+            speech_map = {"room": room, "user": user, "message": message}
+        else:
+            speech_format = self.config.sections["ui"]["speechprivate"]
+            speech_map = {"user": user, "message": message}
+
+        if self.tts_playing and room == self.last_room:
+            if user == self.last_user and message == self.last_message:
+                return  # duplicated Public feed messages or cross-posted spam
+
+            if user == self.last_user:
+                # Consecutive multiline messages from same sender... : (message)
+                speech_format = speech_format.split(":", maxsplit=1)[-1]
+                if "%(message)s" not in speech_format:
+                    speech_format = "%(user)s: %(message)s ... Text-To-Speech syntax! incorrect :"
+
+            else:
+                # Ongoing conversations in same room... , (user) said: (message)
+                speech_format = speech_format.split(",", maxsplit=1)[-1]
+
+            speech_map = {"user": user, "message": message}
+            log.add_debug(message)
+
+        self.new_tts(speech_format, speech_map)
+
+        # Remember last source for clearer message format if queued tts_playing
+        self.last_room, self.last_user, self.last_message = room, user, message
+
+    def new_tts(self, message, args=None):
 
         if message in self.tts:
             return
@@ -86,7 +118,10 @@ class Notifications:
             for key, value in args.items():
                 args[key] = self.tts_clean_message(value)
 
-            message = message % args
+            try:
+                message = message % args
+            except (TypeError, NameError):
+                log.add_debug("TTS error: Format syntax requires %(room)s, %(user)s: %(message)s")
 
         self.tts.append(message)
 
