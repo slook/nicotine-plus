@@ -377,9 +377,7 @@ class PrivateChat(UserInterface):
                                        username=self.user, usertag=usertag)
 
         if self.Speech.get_active():
-            self.frame.np.notifications.new_tts(
-                config.sections["ui"]["speechprivate"], {"user": self.user, "message": speech}
-            )
+            self.frame.np.notifications.chat_tts(user=self.user, message=speech)
 
         if self.Log.get_active():
             timestamp_format = config.sections["logging"]["log_timestamp"]
