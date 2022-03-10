@@ -794,9 +794,7 @@ class ChatRoom(UserInterface):
             )
 
             if self.Speech.get_active():
-                self.frame.np.notifications.new_tts(
-                    config.sections["ui"]["speechrooms"], {"room": msg.room, "user": user, "message": speech}
-                )
+                self.frame.np.notifications.chat_tts(room=msg.room, user=user, message=speech)
 
         else:
             self.chat_textview.append_line(
