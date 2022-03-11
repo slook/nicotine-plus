@@ -1,0 +1,4 @@
+Version = "2022-03-10r00"
+Authors = ["Nicotine+"]
+Name = "Chat Button"
+Description = "This plugin creates a toggle button next to the chat entry box, and remembers the active state for each public and private chat tab."
