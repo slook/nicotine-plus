@@ -94,15 +94,13 @@ class Notifications:
             if user == self.last_user:
                 # Consecutive multiline messages from same sender... : (message)
                 speech_format = speech_format.split(":", maxsplit=1)[-1]
-                if "%(message)s" not in speech_format:
-                    speech_format = "%(user)s: %(message)s ... Text-To-Speech syntax! incorrect :"
 
             else:
                 # Ongoing conversations in same room... , (user) said: (message)
                 speech_format = speech_format.split(",", maxsplit=1)[-1]
 
-            speech_map = {"user": user, "message": message}
-            log.add_debug(message)
+            # TODO: Check if the user and message has been split properly
+            log.add_debug(str(message))
 
         self.new_tts(speech_format, speech_map)
 
