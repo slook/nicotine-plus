@@ -39,7 +39,7 @@ from pynicotine.utils import unalias
 class ChatEntry:
     """ Custom text entry with support for chat commands and completions """
 
-    def __init__(self, frame, entry, completion, entity, message_class, send_message, command_list, is_chatroom=False):
+    def __init__(self, frame, entry, completion, entity, message_class, send_message, is_chatroom=False):
 
         self.frame = frame
         self.core = frame.core
@@ -48,7 +48,6 @@ class ChatEntry:
         self.entity = entity
         self.message_class = message_class
         self.send_message = send_message
-        self.command_list = command_list
         self.is_chatroom = is_chatroom
 
         entry.connect("activate", self.on_enter)
@@ -108,10 +107,6 @@ class ChatEntry:
         cmd_split = text.split(maxsplit=1)
         cmd = cmd_split[0]
 
-        if cmd + " " not in self.command_list:
-            log.add(_("Command %s is not recognized"), cmd)
-            return
-
         # Clear chat entry
         self.entry.set_text("")
 
@@ -121,144 +116,7 @@ class ChatEntry:
             args = ""
             arg_self = "" if self.is_chatroom else self.entity
 
-        if cmd in ("/alias", "/al"):
-            parent = self.core.chatrooms if self.is_chatroom else self.core.privatechats
-            parent.echo_message(self.entity, add_alias(args))
-
-            if config.sections["words"]["aliases"]:
-                self.frame.update_completions()
-
-        elif cmd in ("/unalias", "/un"):
-            parent = self.core.chatrooms if self.is_chatroom else self.core.privatechats
-            parent.echo_message(self.entity, unalias(args))
-
-            if config.sections["words"]["aliases"]:
-                self.frame.update_completions()
-
-        elif cmd in ("/w", "/whois", "/info"):
-            if arg_self:
-                self.core.userinfo.request_user_info(arg_self)
-                self.frame.change_main_page(self.frame.userinfo_page)
-
-        elif cmd in ("/b", "/browse"):
-            if arg_self:
-                self.core.userbrowse.browse_user(arg_self)
-                self.frame.change_main_page(self.frame.userbrowse_page)
-
-        elif cmd == "/ip":
-            if arg_self:
-                self.core.request_ip_address(arg_self)
-
-        elif cmd == "/pm":
-            if args:
-                self.core.privatechats.show_user(args)
-                self.frame.change_main_page(self.frame.private_page)
-
-        elif cmd in ("/m", "/msg"):
-            if args:
-                args_split = args.split(" ", maxsplit=1)
-                user = args_split[0]
-                msg = None
-
-                if len(args_split) == 2:
-                    msg = args_split[1]
-
-                if msg:
-                    self.core.privatechats.show_user(user)
-                    self.core.privatechats.send_message(user, msg)
-                    self.frame.change_main_page(self.frame.private_page)
-
-        elif cmd in ("/s", "/search"):
-            if args:
-                self.core.search.do_search(args, "global")
-                self.frame.change_main_page(self.frame.search_page)
-
-        elif cmd in ("/us", "/usearch"):
-            args_split = args.split(" ", maxsplit=1)
-
-            if len(args_split) == 2:
-                self.core.search.do_search(args_split[1], "user", user=args_split[0])
-                self.frame.change_main_page(self.frame.search_page)
-
-        elif cmd in ("/rs", "/rsearch"):
-            if args:
-                self.core.search.do_search(args, "rooms")
-                self.frame.change_main_page(self.frame.search_page)
-
-        elif cmd in ("/bs", "/bsearch"):
-            if args:
-                self.core.search.do_search(args, "buddies")
-                self.frame.change_main_page(self.frame.search_page)
-
-        elif cmd in ("/j", "/join"):
-            if args:
-                self.core.queue.append(slskmessages.JoinRoom(args))
-
-        elif cmd in ("/l", "/leave", "/p", "/part"):
-            if args:
-                self.core.queue.append(slskmessages.LeaveRoom(args))
-            else:
-                self.core.queue.append(slskmessages.LeaveRoom(self.entity))
-
-        elif cmd in ("/ad", "/add", "/buddy"):
-            if args:
-                self.core.userlist.add_user(args)
-
-        elif cmd in ("/rem", "/unbuddy"):
-            if args:
-                self.core.userlist.remove_user(args)
-
-        elif cmd == "/ban":
-            if args:
-                self.core.network_filter.ban_user(args)
-
-        elif cmd == "/ignore":
-            if args:
-                self.core.network_filter.ignore_user(args)
-
-        elif cmd == "/ignoreip":
-            if args:
-                self.core.network_filter.ignore_ip(args)
-
-        elif cmd == "/unban":
-            if args:
-                self.core.network_filter.unban_user(args)
-
-        elif cmd == "/unignore":
-            if args:
-                self.core.network_filter.unignore_user(args)
-
-        elif cmd == "/ctcpversion":
-            if arg_self:
-                self.core.privatechats.show_user(arg_self)
-                self.core.privatechats.send_message(arg_self, self.core.privatechats.CTCP_VERSION)
-
-        elif cmd in ("/clear", "/cl"):
-            if self.is_chatroom:
-                parent = self.frame.chatrooms.pages[self.entity]
-            else:
-                parent = self.frame.privatechat.pages[self.entity]
-
-            parent.chat_view.clear()
-
-        elif cmd in ("/a", "/away"):
-            self.frame.on_away()
-
-        elif cmd in ("/q", "/quit", "/exit"):
-            self.frame.on_quit()
-
-        elif cmd in ("/c", "/close"):
-            self.frame.privatechat.pages[self.entity].on_close()
-
-        elif cmd == "/now":
-            self.core.now_playing.display_now_playing(
-                callback=lambda np_message: self.send_message(self.entity, np_message))
-
-        elif cmd == "/toggle":
-            if args:
-                self.core.pluginhandler.toggle_plugin(args)
-
-        elif self.is_chatroom:
+        if self.is_chatroom:
             self.core.pluginhandler.trigger_public_command_event(self.entity, cmd[1:], args)
 
         elif not self.is_chatroom:
