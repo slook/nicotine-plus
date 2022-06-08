@@ -22,15 +22,12 @@ from os.path import commonprefix
 
 from gi.repository import Gtk
 
-from pynicotine import slskmessages
 from pynicotine.config import config
 from pynicotine.gtkgui.widgets.accelerator import Accelerator
 from pynicotine.logfacility import log
 from pynicotine.slskmessages import UserStatus
-from pynicotine.utils import add_alias
 from pynicotine.utils import get_alias
 from pynicotine.utils import is_alias
-from pynicotine.utils import unalias
 
 
 """ Text Entry-related """
@@ -111,10 +108,9 @@ class ChatEntry:
         self.entry.set_text("")
 
         if len(cmd_split) == 2:
-            args = arg_self = cmd_split[1]
+            args = cmd_split[1]
         else:
             args = ""
-            arg_self = "" if self.is_chatroom else self.entity
 
         if self.is_chatroom:
             self.core.pluginhandler.trigger_public_command_event(self.entity, cmd[1:], args)
