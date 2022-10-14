@@ -103,6 +103,12 @@ class PrivateChats(IconNotebook):
         self.frame.private_entry.set_text("")
         self.core.privatechats.show_user(username)
 
+    def clear_messages(self, user):
+
+        page = self.pages.get(user)
+        if page is not None:
+            page.chat_view.clear()
+
     def clear_notifications(self):
 
         if self.frame.current_page_id != self.frame.private_page.id:
@@ -149,12 +155,6 @@ class PrivateChats(IconNotebook):
         page.clear()
         self.remove_page(page.container)
         del self.pages[user]
-
-    def clear_view(self, user):
-
-        page = self.pages.get(user)
-        if page is not None:
-            page.chat_view.on_clear_all_text()
 
     def echo_message(self, user, text, message_type):
 
