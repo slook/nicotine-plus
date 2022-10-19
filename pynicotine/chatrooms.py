@@ -79,18 +79,17 @@ class ChatRooms:
 
         if room == "Public ":
             self.queue.append(slskmessages.LeavePublicRoom())
-        else:
-            self.queue.append(slskmessages.LeaveRoom(room))
 
-        self.joined_rooms.discard(room)
+        elif room in self.joined_rooms:
+            log.add_chat(_(f"Leaving room {room}"))
+            self.queue.append(slskmessages.LeaveRoom(room))
+            self.joined_rooms.discard(room)
 
         if room in self.config.sections["columns"]["chat_room"]:
             del self.config.sections["columns"]["chat_room"][room]
 
         if self.ui_callback:
             self.ui_callback.remove_room(room)
-
-        self.core.pluginhandler.leave_chatroom_notification(room)
 
     def clear_messages(self, room):
         if self.ui_callback:
@@ -102,15 +101,20 @@ class ChatRooms:
 
     def send_message(self, room, message):
 
-        event = self.core.pluginhandler.outgoing_public_chat_event(room, message)
-        if event is None:
-            return
+        room, message = self.core.pluginhandler.outgoing_public_chat_event(room, message)
 
-        room, message = event
+        if room is None or message is None:
+            return False
+
         message = self.core.privatechats.auto_replace(message)
+
+        if message == "":
+            return False
 
         self.queue.append(slskmessages.SayChatroom(room, message))
         self.core.pluginhandler.outgoing_public_chat_notification(room, message)
+
+        return True
 
     def create_private_room(self, room, owner=None, operators=None):
 
@@ -187,6 +191,8 @@ class ChatRooms:
         if self.ui_callback:
             self.ui_callback.join_room(msg)
 
+        self.echo_message(msg.room, "Joined room %(room)s" % {"room": msg.room})
+
         self.core.pluginhandler.join_chatroom_notification(msg.room)
 
     def leave_room(self, msg):
@@ -194,6 +200,8 @@ class ChatRooms:
 
         if self.ui_callback:
             self.ui_callback.leave_room(msg)
+
+        self.core.pluginhandler.leave_chatroom_notification(msg.room)
 
     def get_user_status(self, msg):
         """ Server code: 7 """

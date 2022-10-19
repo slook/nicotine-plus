@@ -29,6 +29,7 @@ class Plugin(BasePlugin):
             "help": {
                 "callback": self.help_command,
                 "description": "Show commands",
+                "usage": ["[query]"],
                 "aliases": ["?"]
             },
             "rescan": {
@@ -45,12 +46,14 @@ class Plugin(BasePlugin):
             },
             "away": {
                 "callback": self.away_command,
-                "description": "Toggle away status"
+                "description": _("Toggle away status"),
+                "aliases": ["a"]
             },
             "quit": {
                 "callback": self.quit_command,
                 "description": _("Quit Nicotine+"),
                 "usage": ["[force]"],
+                "choices": ["force"],
                 "aliases": ["q", "exit"]
             }
         }
@@ -60,21 +63,56 @@ class Plugin(BasePlugin):
                 "callback": self.clear_command,
                 "description": _("Clear chat window"),
                 "aliases": ["cl"],
+                "choices": [-1],
                 "group": _("Chat")
             },
-            "close": {
-                "callback": self.close_command,
-                "description": _("Close private chat"),
-                "usage": ["[user]"],
-                "aliases": ["c"],
-                "group": _("Private Chat")
-            },
             "join": {
-                "callback": self.join_command,
+                "callback": self.join_chat_command,
                 "description": _("Join chat room"),
                 "usage": ["<room>"],
                 "aliases": ["j"],
                 "group": _("Chat Rooms")
+            },
+            "me": {
+                "callback": self.me_chat_command,
+                "description": _("Say something in the third-person"),
+                "usage": ["<something..>"],
+                "group": _("Chat")
+            },
+            "msg": {
+                "callback": self.msg_chat_command,
+                "description": _("Send private message to user"),
+                "usage": ["<user>", "<message..>"],
+                "aliases": ["m"],
+                "group": _("Private Chat")
+            },
+            "pm": {
+                "callback": self.pm_chat_command,
+                "description": _("Open private chat window for user"),
+                "usage": ["<user>"],
+                "group": _("Private Chat")
+            },
+            "say": {
+                "callback": self.say_chat_command,
+                "description": _("Say message in specified chat room"),
+                "usage": ["<room>", "<message..>"],
+                "group": _("Chat Rooms")
+            },
+            "ctcpversion": {
+                "callback": self.ctcpversion_command,
+                "description": _("Ask for a user's client version"),
+                "usage": ["[user]"],
+                "group": _("Client-To-Client Protocol")
+            }
+        }
+
+        chatroom_commands = {
+            "close": {
+                "callback": self.close_command,
+                "description": _("Close private chat"),
+                "usage": ["<user>"],
+                "aliases": ["c"],
+                "group": _("Private Chat")
             },
             "leave": {
                 "callback": self.leave_command,
@@ -82,32 +120,24 @@ class Plugin(BasePlugin):
                 "usage": ["[room]"],
                 "aliases": ["l"],
                 "group": _("Chat Rooms")
-            },
-            "me": {
-                "callback": self.me_command,
-                "description": _("Say something in the third-person"),
-                "usage": ["<something..>"],
-                "group": _("Chat")
-            },
-            "msg": {
-                "callback": self.msg_command,
-                "description": _("Send private message to user"),
-                "usage": ["<user>", "[message..]"],
-                "aliases": ["m"],
+            }
+        }
+
+        private_chat_commands = {
+            "close": {
+                "callback": self.close_command,
+                "description": _("Close private chat"),
+                "usage": ["[user]"],
+                "aliases": ["c"],
                 "group": _("Private Chat")
             },
-            "pm": {
-                "callback": self.pm_command,
-                "description": _("Open private chat window for user"),
-                "usage": ["<user>", "[message..]"],
-                "group": _("Private Chat")
-            },
-            "say": {
-                "callback": self.say_command,
-                "description": _("Say message in specified chat room"),
-                "usage": ["<room>", "<message..>"],
+            "leave": {
+                "callback": self.leave_command,
+                "description": _("Leave chat room"),
+                "usage": ["<room>"],
+                "aliases": ["l"],
                 "group": _("Chat Rooms")
-            },
+            }
         }
 
         cli_commands = {
@@ -115,12 +145,14 @@ class Plugin(BasePlugin):
                 "callback": self.add_share_command,
                 "description": _("Add share"),
                 "usage": ["<public|private>", "<virtual_name>", "<path>"],
+                "choices": ["public", "private"],
                 "group": _("Shares")
             },
             "removeshare": {
                 "callback": self.remove_share_command,
                 "description": _("Remove share"),
                 "usage": ["<public|private>", "<virtual_name>"],
+                "choices": ["public", "private"],
                 "group": _("Shares")
             },
             "listshares": {
@@ -130,22 +162,24 @@ class Plugin(BasePlugin):
             }
         }
 
-        self.chatroom_commands = {**commands, **chat_commands}
-        self.private_chat_commands = {**commands, **chat_commands}
+        self.chatroom_commands = {**commands, **chat_commands, **chatroom_commands}
+        self.private_chat_commands = {**commands, **chat_commands, **private_chat_commands}
         self.cli_commands = {**commands, **cli_commands}
 
-    def help_command(self, _args, command_type, _source):
+    def help_command(self, args, user=None, room=None):
 
-        if command_type == "chatroom":
-            command_list = self.parent.chatroom_commands
-
-        elif command_type == "private_chat":
+        if user is not None:
             command_list = self.parent.private_chat_commands
 
-        elif command_type == "cli":
+        elif room is not None:
+            command_list = self.parent.chatroom_commands
+
+        else:
             command_list = self.parent.cli_commands
 
+        query = args.split(" ", maxsplit=1)[0].lower().lstrip("/")
         command_groups = {}
+        num_commands = 0
 
         for command, data in command_list.items():
             command_message = command
@@ -160,11 +194,20 @@ class Plugin(BasePlugin):
 
             description = data.get("description", "No description")
             group = data.get("group", _("Commands"))
+            group_words = group.lower().split(" ")
 
-            if group not in command_groups:
-                command_groups[group] = []
+            if not args or query in command or query in (a for a in aliases) or query in group_words:
+                if group not in command_groups:
+                    command_groups[group] = []
 
-            command_groups[group].append("    %s  -  %s" % (command_message, description))
+                command_groups[group].append("    %s  -  %s" % (command_message, description))
+                num_commands += 1
+
+        if not num_commands:
+            self.echo_unknown_command(query)
+
+        elif num_commands >= 2 and query:
+            self.echo_message("List of %i commands matching \"%s\":" % (num_commands, query))
 
         for group, commands in command_groups.items():
             self.echo_message("")
@@ -173,152 +216,119 @@ class Plugin(BasePlugin):
             for command in commands:
                 self.echo_message(command)
 
-    def close_command(self, args, command_type, source):
+    def clear_command(self, _args, user=None, room=None):
 
-        if not args and command_type == "private_chat":
-            self.core.privatechats.remove_user(source)
+        if room is not None:
+            self.core.chatrooms.clear_messages(room)
 
-        elif args in self.core.privatechats.users:
-            self.core.privatechats.remove_user(args)
-            self.echo_message("Closed private chat of user %s" % args)
+        elif user is not None:
+            self.core.privatechats.clear_messages(user)
 
-        elif args:
-            self.echo_message("Not chatting with user %s" % args)
-
-        elif command_type != "private_chat":
-            # TODO: maybe consider diverting to leave_command(room)
-            self.echo_message("Missing argument: %s" % ('[user]'))
-
-    def clear_command(self, args, command_type, source):
+    def close_command(self, args, user=None, **_unused):
 
         if args:
-            self.echo_message("Unexpected argument: %s" % (args))
-            return
+            user = args
 
-        if command_type == "chatroom":
-            self.core.chatrooms.clear_view(source)
+        if user in self.core.privatechats.users:
+            self.echo_message("Closing private chat of user %s" % user)
+        elif user:
+            self.echo_message("Not messaging with user %s" % user)
 
-        elif command_type == "private_chat":
-            self.core.privatechats.clear_view(source)
+        self.core.privatechats.remove_user(user)
 
-    def join_command(self, args, _command_type, _source):
-
-        room = args
-
-        if room in self.core.chatrooms.joined_rooms:
-            # TODO: core needs show_room() tab switch ui_callback
-            self.echo_message("Already joined in room %s" % room)
-            return
-
-        if room not in self.core.chatrooms.server_rooms and room not in self.core.chatrooms.private_rooms:
-            self.echo_message("Creating new room %s" % room)
-
-        self.echo_message("Joining room %s" % room)
-        self.core.chatrooms.request_join_room(room)
-
-    def leave_command(self, args, command_type, source):
+    def ctcpversion_command(self, args, user=None, **_unused):
 
         if args:
-            room = args  # optional argument for leaving any room
-        else:
-            room = source if command_type == "chatroom" else None
+            user = args
 
-        if room is None:
-            self.echo_message("Missing argument: %s" % ('[room]'))
-            return
+        elif user is None:
+            user = self.core.login_username
 
-        if not room in self.core.chatrooms.joined_rooms:
+        if self.send_private(user, self.core.privatechats.CTCP_VERSION, show_ui=False):
+            self.echo_message("Asked %s for client version" % user)
+
+    def hello_command(self, args, **_unused):
+        self.echo_message("Hello there! %s" % args)
+
+    def join_chat_command(self, args, **_unused):
+        self.core.chatrooms.show_room(args)
+
+    def leave_command(self, args, room=None, **_unused):
+
+        if args:
+            room = args
+
+        if room not in self.core.chatrooms.joined_rooms:
             self.echo_message("Not joined in room %s" % room)
-            return
+            # return  # in future the gui might need to close a tab even if we are not joined, such as while offline etc
 
-        self.echo_message("Leaving room %s" % room)
-        self.core.chatrooms.request_leave_room(room)
+        self.core.chatrooms.remove_room(room)
 
-    def me_command(self, args, _command_type, _source):
+    def me_chat_command(self, args, **_unused):
         self.send_message("/me " + args)
 
-    def msg_command(self, args, _command_type, _source):
-        # Send private chat [message] to <user> or open chat window if no [message]
+    def msg_chat_command(self, args, **_unused):
 
         args_split = args.split(" ", maxsplit=1)
-        user, text = args_split[0], args_split[1] if len(args_split) == 2 else None
+        user, text = args_split[0], args_split[1]
 
-        if text:
-            self.send_private(user, text, switch_page=False)
+        if self.send_private(user, text, show_ui=True, switch_page=False):
             self.echo_message("Private message sent to user %s" % user)
-        else:
-            self.core.privatechats.show_user(user)
-            self.echo_message("Private chat opened with user %s" % user)
 
-    def pm_command(self, args, _command_type, _source):
-        # Open private chat window for <user> and optionally send [message]
+    def pm_chat_command(self, args, **_unused):
+        self.core.privatechats.show_user(args)
+        self.log("Private chat with user %s" % args)
 
-        args_split = args.split(" ", maxsplit=1)
-        user, text = args_split[0], args_split[1] if len(args_split) == 2 else None
-
-        if text:
-            self.send_private(user, text, switch_page=True)
-            self.echo_message("Private message sent to user %s" % user)
-        else:
-            self.core.privatechats.show_user(user)
-            self.echo_message("Private chat opened with user %s" % user)
-
-    def private_message_command(self, _args, _command_type, _source):  # , switch_page=True):
-        # TODO: combine pm_command(switch_page=True) with msg_command(switch_page=False)
-        #
-        # "Plugin core_commands failed with error <class 'TypeError'>:
-        # private_message_command() got multiple values for argument 'switch_page'.
-        pass
-
-    def rescan_command(self, _args, _command_type, _source):
-        self.core.shares.rescan_shares()
-
-    def say_command(self, args, _command_type, _source):
+    def say_chat_command(self, args, **_unused):
 
         args_split = args.split(" ", maxsplit=1)
         room, text = args_split[0], args_split[1]
 
-        if not room in self.core.chatrooms.joined_rooms:
-            self.echo_message("Not joined in room %s" % room)
+        if self.send_public(room, text):
+            self.log("Chat message sent to room %s" % room)
+
+    def add_share_command(self, args):
+
+        args_split = args.split(" ", maxsplit=3)  # "\""
+        access, name, path = args_split[0], args_split[1], args_split[2]
+
+        self.echo_message(f"nothing here yet, you entered: access='{access}' name='{name}' path='{path}'")
+
+    def remove_share_command(self, args):
+
+        args_split = args.split(" ", maxsplit=2)
+        access, name = args_split[0], args_split[1]
+
+        self.echo_message(f"nothing here yet, you entered: access='{access}' name='{name}'")
+
+    def list_shares_command(self, args):
+        self.echo_message(f"nothing here yet, you entered: {args}")
+
+    def rescan_command(self, _args, **_unused):
+        self.core.shares.rescan_shares()
+
+    def away_command(self, _args, **_unused):
+        self.core.set_away_mode(self.core.user_status != 1, save_state=True)  # 1 = UserStatus.AWAY
+        self.echo_message("Status is now %s" % (_("Online") if self.core.user_status == 2 else _("Away")))
+
+    def quit_command(self, args, user=None, room=None):
+
+        if user is not None:
+            interface = "private_chat"
+
+        elif room is not None:
+            interface = "chatroom"
+
+        else:
+            interface = "cli"
+
+        if "force" not in args:
+            self.log("Exiting application on %s command %s" % (interface, args))
+            self.core.confirm_quit()
             return
 
-        self.send_public(room, text)
-        self.echo_message("Chat message sent to room %s" % room)
-
-    def hello_command(self, args, _command_type, _source):
-        self.echo_message("Hello there! %s" % args)
-
-    def add_share_command(self, _args, _command_type, _source):
-
-        # share_type, virtual_name, path = args.split(maxsplit=3)
-
-        self.core.shares.rescan_shares()
-
-    def remove_share_command(self, _args, _command_type, _source):
-
-        # share_type, virtual_name, *_unused = args.split(maxsplit=2)
-
-        self.core.shares.rescan_shares()
-
-    def list_shares_command(self, _args, _command_type, _source):
-        self.echo_message("nothing here yet")
-
-    def away_command(self, _args, _command_type, _source):
-        self.core.set_away_mode(self.core.user_status != 1, save_state=True)  # 1 = UserStatus.AWAY
-        self.echo_message("Status is now %s" % ("Online" if self.core.user_status == 2 else "Away"))
+        self.log("Quitting on %s command %s" % (interface, args))
+        self.core.quit()
 
     def shutdown_notification(self):
         self.log("Shutdown!")
-
-    def quit_command(self, args, command_type, _source):
-
-        if self.core.ui_callback and not "force" in args:  # and not command_type == "cli":
-            self.log("Exiting application on %s command %s" % (command_type, args))
-            # TODO: X Window System error 'BadImplementation (server does not implement operation)'
-            # '     Details: serial 28078 error_code 17 request_code 20 (core protocol) minor_code 0
-            self.core.ui_callback.on_quit()
-            return
-
-        self.log("Quitting on %s command %s" % (command_type, args))
-        # TODO: Gtk-ERROR **: 12:13:37.433: Unknown segment type: \x80\x9d\x9b\u0003
-        self.core.quit()  # Fatal Python error: Segmentation fault

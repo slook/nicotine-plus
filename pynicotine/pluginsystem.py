@@ -173,7 +173,13 @@ class BasePlugin:
         log.add(self.human_name + ": " + msg, msg_args)
 
     def send_public(self, room, text):
-        self.core.queue.append(slskmessages.SayChatroom(room, text))
+        """ Send a public message to the specified chat room """
+
+        if room not in self.core.chatrooms.joined_rooms:
+            self.echo_message("Not joined in room %s" % room)
+
+        elif text:
+            self.core.queue.append(slskmessages.SayChatroom(room, text))
 
     def send_private(self, user, text, show_ui=True, switch_page=True):
         """ Send user message in private.
@@ -181,9 +187,9 @@ class BasePlugin:
         switch_page controls whether the user's private chat view should be opened. """
 
         if show_ui:
-            self.core.privatechats.show_user(user, switch_page)
+            self.core.privatechats.show_user(user, switch_page=switch_page)
 
-        self.core.privatechats.send_message(user, text)
+        return self.core.privatechats.send_message(user, text)
 
     def echo_public(self, room, text, message_type="local"):
         """ Display a raw message in chat rooms (not sent to others).
@@ -237,6 +243,9 @@ class BasePlugin:
             function = self.echo_private
 
         function(source, text, message_type)
+
+    def echo_unknown_command(self, command):
+        self.echo_message(_("Unknown command: %s. Type /help for a list of commands.") % ("/" + command))
 
     # Obsolete functions
 
@@ -678,30 +687,38 @@ class PluginHandler:
             log.add_debug("No stored settings found for %s", plugin.human_name)
 
     def trigger_chatroom_command_event(self, room, command, args):
-        return self._trigger_command(command, room, args, command_type="chatroom")
+        return self._trigger_command(command, args, room=room)
 
     def trigger_private_chat_command_event(self, user, command, args):
-        return self._trigger_command(command, user, args, command_type="private_chat")
+        return self._trigger_command(command, args, user=user)
 
     def trigger_cli_command_event(self, command, args):
-        return self._trigger_command(command, self.core.login_username, args, command_type="cli")
+        return self._trigger_command(command, args)
 
-    def _trigger_command(self, command, source, args, command_type):
+    def _trigger_command(self, command, args, user=None, room=None):
 
-        self.command_source = (command_type, source)
         plugin = None
+
+        if room is not None:
+            self.command_source = ("chatroom", room)
+
+        elif user is not None:
+            self.command_source = ("private_chat", user)
+
+        else:
+            self.command_source = ("cli", None)
 
         for module, plugin in self.enabled_plugins.items():
             if plugin is None:
                 continue
 
-            if command_type == "chatroom":
+            if room is not None:
                 commands = plugin.chatroom_commands
 
-            elif command_type == "private_chat":
+            elif user is not None:
                 commands = plugin.private_chat_commands
 
-            elif command_type == "cli":
+            else:
                 commands = plugin.cli_commands
 
             try:
@@ -712,21 +729,38 @@ class PluginHandler:
                         continue
 
                     usage = data.get("usage")
+                    choices = data.get("choices", [])
+                    args_split = args.split(maxsplit=3)
+                    num_args = len(args_split)
+                    reject = None
 
-                    if usage:
+                    if args and -1 in choices:
+                        reject = f"Unexpected argument >{args_split[0]}<"
+
+                    elif args and choices and args_split[0] not in choices:
+                        reject = "Invalid argument, possible choices: %s" % " | ".join(choices)
+
+                    elif usage:
                         num_usage = len(list(x for x in usage if x.startswith("<")))
-                        num_args = len(args.split())
 
                         if num_args < num_usage:
-                            description = data.get("description")
+                            reject = "Missing argument"
 
-                            if description:
-                                plugin.echo_message(description)
+                    if reject:
+                        description = data.get("description", "execute command").lower()
+                        plugin.echo_message(f"Cannot {description}: {reject}")
+                        plugin.echo_message("Usage: %s %s" % ('/' + command, " ".join(usage) if usage else ""))
+                        return
 
-                            plugin.echo_message("Usage: %s %s" % ('/' + command, " ".join(usage)))
-                            return
+                    if room is not None:
+                        getattr(plugin, data.get("callback").__name__)(args, room=room)
 
-                    getattr(plugin, data.get("callback").__name__)(args, command_type, source)
+                    elif user is not None:
+                        getattr(plugin, data.get("callback").__name__)(args, user=user)
+
+                    else:
+                        getattr(plugin, data.get("callback").__name__)(args)
+
                     return
 
             except Exception:
@@ -734,7 +768,7 @@ class PluginHandler:
                 return
 
         if plugin is not None:
-            plugin.echo_message(_("Unknown command %s. Type /help for a list of commands.") % ("/" + command))
+            plugin.echo_unknown_command(command)
 
         self.command_source = None
         return
