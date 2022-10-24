@@ -734,9 +734,8 @@ class PluginHandler:
                         continue
 
                     if not self._parse_command_arguments(plugin, command, args, data):
+                        # Illegal argument(s)
                         return False
-
-                    output = None
 
                     if room is not None:
                         output = getattr(plugin, data.get("callback").__name__)(args, room=room)
@@ -781,45 +780,79 @@ class PluginHandler:
             # No usage criteria set, plugin has to deal with it
             return True
 
-        # TODO: Support arguments "containing spaces in quotes"
-        args_split = args.split(maxsplit=(len(usage) - 1))
+        def split_arguments():
+            """ Working draft, TODO: Shorten this code """
+
+            sarg = []
+
+            word_split = args.split()
+            word_count = len(word_split)
+
+            args_split = args.split(maxsplit=(len(usage) - 1))
+            args_count = len(args_split)
+
+            quote_split = args.split('"', maxsplit=(len(usage) - 1))
+            quote_count = len(quote_split)
+
+            space_quote_split = args.split(' "', maxsplit=(len(usage) - 1))
+            space_quote_count = len(space_quote_split)
+
+            log.add_debug("words " + str(word_count) + "    args " + str(args_count) + "     " + "    quotes " + str(quote_count) + "    quotespace " + str(space_quote_count))
+
+            # If "" appears in usage, then we enforce a maximum number of arguments
+            if (' "' in args and '" ' in args) or ('"' in args and '" ' in args) or (' "' in args and '"' in args):
+                # and "" in usage:
+                return quote_split
+
+            if word_count == args_count:
+                # Arguments do not contain spaces
+                return word_split
+
+            if ' "' not in args and word_count > len(usage):
+                # Take the first two single words as each argument, the rest as third argument
+                return args_split
+
+            return sarg
+
+        args_split = split_arguments()
         num_args = len(args_split)
 
-        reject = None
-        position = num_args_required = num_args_optional = 0
+        def illegal_usage():
 
-        for def_arg in usage:
-            com_arg = args_split[position] if position < num_args else ""
+            position = num_args_required = num_args_optional = 0
 
-            # <required> argument
-            if def_arg.startswith("<"):
-                num_args_required += 1
+            for def_arg in usage:
+                com_arg = args_split[position] if position < num_args else ""
 
-                if num_args < num_args_required:
-                    reject = f"Required {def_arg} argument missing"
-                    break
+                # <required> argument
+                if def_arg.startswith("<"):
+                    num_args_required += 1
 
-            # [optional] argument
-            elif def_arg.startswith("["):
-                num_args_optional += 1
+                    if num_args < num_args_required:
+                        return f"Required {def_arg} argument missing"
 
-                # [-flag] options (the -hyphen doesn't have to be entered by the user)
-                if "[-" in def_arg and com_arg not in def_arg:
-                    reject = "Unknown option argument"
-                    break
+                # [optional] argument
+                elif def_arg.startswith("["):
+                    num_args_optional += 1
 
-            # choice|selection argument
-            if "|" in def_arg and com_arg not in def_arg:
-                reject = f"Invalid argument >{com_arg}<\nChoices: {def_arg}"
-                break
+                    # [-flag] options
+                    if "[-" in def_arg and com_arg.strip(" -[]") not in def_arg:
+                        return "Unknown option argument"
 
-            # usage: [""] empty string disallows any further arguments
-            if def_arg == "":
-                if num_args > num_args_optional + num_args_required:
-                    reject = "Excessive argument"
-                    break
+                # choice|selection argument
+                if "|" in def_arg and com_arg.strip(" <|>") not in def_arg.strip(" <|>"):
+                    return f"Invalid argument >{com_arg}<\nChoices: {def_arg}"
 
-            position += 1
+                # usage: [""] empty string enforces a maximum number of arguments
+                if def_arg == "" and "\"" not in com_arg:
+                    if num_args > num_args_optional + num_args_required:
+                        return "Excessive argument"
+
+                position += 1
+
+            return False
+
+        reject = illegal_usage()
 
         if reject:
             # Parsed usage criteria not satisfied, provide helpful prompt for guidance
@@ -831,6 +864,7 @@ class PluginHandler:
             return False
 
         # Parsed usage criteria satified, continue to trigger command in the plugin
+        # TODO: Consider parsing the list of split arguments to the command
         return True
 
     def trigger_event(self, function_name, args):
