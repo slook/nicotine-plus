@@ -179,9 +179,8 @@ class BasePlugin:
             self.echo_message("Not joined in room %s" % room)
             return False
 
-        elif text:
-            self.core.queue.append(slskmessages.SayChatroom(room, text))
-            return True
+        self.core.queue.append(slskmessages.SayChatroom(room, text))
+        return True
 
     def send_private(self, user, text, show_ui=True, switch_page=True):
         """ Send user message in private.
@@ -701,28 +700,22 @@ class PluginHandler:
 
         plugin = None
 
-        if room is not None:
-            self.command_source = ("chatroom", room)
-
-        elif user is not None:
-            self.command_source = ("private_chat", user)
-
-        else:
-            self.command_source = ("cli", None)
-
         for module, plugin in self.enabled_plugins.items():
             if plugin is None:
                 continue
 
             if room is not None:
+                self.command_source = ("chatroom", room)
                 commands = plugin.chatroom_commands
                 prefix = "/"
 
             elif user is not None:
                 commands = plugin.private_chat_commands
+                self.command_source = ("private_chat", user)
                 prefix = "/"
 
             else:
+                self.command_source = ("cli", None)
                 commands = plugin.cli_commands
                 prefix = ""
 
@@ -737,7 +730,7 @@ class PluginHandler:
                     if command != trigger and command not in aliases:
                         continue
 
-                    usage = data.get("usage")
+                    usage = data.get("usage", [])
                     choices = data.get("choices", [])
                     args_split = args.split(maxsplit=3)
                     num_args = len(args_split)
@@ -758,7 +751,7 @@ class PluginHandler:
                     if reject:
                         description = data.get("description", "execute command").lower()
                         plugin.echo_message(f"Cannot {description}: {reject}")
-                        plugin.echo_message("Usage: %s %s" % ('/' + command, " ".join(usage) if usage else ""))
+                        plugin.echo_message("Usage: %s %s" % ('/' + command, " ".join(usage)))
                         return False
 
                     if room is not None:
@@ -770,13 +763,10 @@ class PluginHandler:
                     else:
                         output = getattr(plugin, data.get("callback").__name__)(args)
 
-                    if output is False:
-                        return False
-
-                    if output not in (None, True, 0):
+                    if output not in (True, False, None, 0):
                         plugin.echo_message(output)
 
-                    return True
+                    return bool(output is None or output)
 
                 plugin.echo_unknown_command(command)
 
