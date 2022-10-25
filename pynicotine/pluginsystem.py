@@ -716,12 +716,19 @@ class PluginHandler:
 
             if room is not None:
                 commands = plugin.chatroom_commands
+                prefix = "/"
 
             elif user is not None:
                 commands = plugin.private_chat_commands
+                prefix = "/"
 
             else:
                 commands = plugin.cli_commands
+                prefix = ""
+
+            if prefix:
+                # Input command line echo is needed in chat view
+                plugin.echo_message(f"{prefix}{command} {args}")
 
             try:
                 for trigger, data in commands.items():
