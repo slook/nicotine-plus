@@ -224,7 +224,7 @@ class BasePlugin:
         function = self.send_public if command_type == "chatroom" else self.send_private
         return function(source, text)
 
-    def echo_message(self, text, message_type="local"):
+    def echo_message(self, text, message_type="echo"):
         """ Convenience function to display a raw message the same window
         a plugin command runs from """
 
