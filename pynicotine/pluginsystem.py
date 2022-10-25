@@ -177,9 +177,11 @@ class BasePlugin:
 
         if room not in self.core.chatrooms.joined_rooms:
             self.echo_message("Not joined in room %s" % room)
+            return False
 
         elif text:
             self.core.queue.append(slskmessages.SayChatroom(room, text))
+            return True
 
     def send_private(self, user, text, show_ui=True, switch_page=True):
         """ Send user message in private.
@@ -212,15 +214,15 @@ class BasePlugin:
 
         if self.parent.command_source is None:  # pylint: disable=no-member
             # Function was not called from a command
-            return
+            return False
 
         command_type, source = self.parent.command_source  # pylint: disable=no-member
 
         if command_type == "cli":
-            return
+            return False
 
         function = self.send_public if command_type == "chatroom" else self.send_private
-        function(source, text)
+        return function(source, text)
 
     def echo_message(self, text, message_type="local"):
         """ Convenience function to display a raw message the same window
@@ -750,28 +752,33 @@ class PluginHandler:
                         description = data.get("description", "execute command").lower()
                         plugin.echo_message(f"Cannot {description}: {reject}")
                         plugin.echo_message("Usage: %s %s" % ('/' + command, " ".join(usage) if usage else ""))
-                        return
+                        return False
 
                     if room is not None:
-                        getattr(plugin, data.get("callback").__name__)(args, room=room)
+                        output = getattr(plugin, data.get("callback").__name__)(args, room=room)
 
                     elif user is not None:
-                        getattr(plugin, data.get("callback").__name__)(args, user=user)
+                        output = getattr(plugin, data.get("callback").__name__)(args, user=user)
 
                     else:
-                        getattr(plugin, data.get("callback").__name__)(args)
+                        output = getattr(plugin, data.get("callback").__name__)(args)
 
-                    return
+                    if output is False:
+                        return False
+
+                    if output not in (None, True, 0):
+                        plugin.echo_message(output)
+
+                    return True
+
+                plugin.echo_unknown_command(command)
 
             except Exception:
                 self.show_plugin_error(module, sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2])
-                return
-
-        if plugin is not None:
-            plugin.echo_unknown_command(command)
+                return False
 
         self.command_source = None
-        return
+        return None
 
     def trigger_event(self, function_name, args):
         """ Triggers an event for the plugins. Since events and notifications
