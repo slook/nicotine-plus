@@ -244,6 +244,9 @@ class Searches(IconNotebook):
             mode_label = _("Wish")
             tab = self.create_tab(msg.token, search_term, mode, mode_label, showtab=False)
 
+            if config.sections["notifications"]["notification_popup_wish"]:
+                self.core.notifications.new_text_notification(search_term, title=_("Wishlist item found"))
+
         # No more things to add because we've reached the result limit
         if tab.num_results_found >= tab.max_limit:
             self.core.search.remove_allowed_token(msg.token)
@@ -274,7 +277,8 @@ class Searches(IconNotebook):
         pass
 
     def server_disconnect(self):
-        self.wish_list.server_disconnect()
+        # Not needed
+        pass
 
 
 class Search:
@@ -805,32 +809,21 @@ class Search:
         else:
             parent = None
 
-        try:
-            """ Note that we use insert_with_values instead of append, as this reduces
-            overhead by bypassing useless row conversion to GObject.Value in PyGObject. """
+        # Note that we use insert_with_values instead of append, as this reduces
+        # overhead by bypassing useless row conversion to GObject.Value in PyGObject.
 
-            if parent is None:
-                iterator = self.resultsmodel.insert_with_valuesv(-1, self.column_numbers, row)
-            else:
-                iterator = self.resultsmodel.insert_with_values(parent, -1, self.column_numbers, row)
+        if parent is None:
+            iterator = self.resultsmodel.insert_with_valuesv(-1, self.column_numbers, row)
+        else:
+            iterator = self.resultsmodel.insert_with_values(parent, -1, self.column_numbers, row)
 
-            if expand_user:
-                self.tree_view.expand_row(self.resultsmodel.get_path(self.usersiters[user]), False)
+        if expand_user:
+            self.tree_view.expand_row(self.resultsmodel.get_path(self.usersiters[user]), False)
 
-            if expand_folder:
-                self.tree_view.expand_row(self.resultsmodel.get_path(self.directoryiters[user_directory]), False)
+        if expand_folder:
+            self.tree_view.expand_row(self.resultsmodel.get_path(self.directoryiters[user_directory]), False)
 
-            self.num_results_visible += 1
-
-        except Exception as error:
-            types = []
-
-            for i in row:
-                types.append(type(i))
-
-            log.add("Search row error: %(exception)s %(row)s", {'exception': error, 'row': row})
-            iterator = None
-
+        self.num_results_visible += 1
         return iterator
 
     """ Result Filters """
