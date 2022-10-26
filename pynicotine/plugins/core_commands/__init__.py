@@ -155,7 +155,7 @@ class Plugin(BasePlugin):
             },
             "unignore": {
                 "callback": self.unignore_user_command,
-                "description": _("Remove user from ignore list"),
+                "description": _("Remove user from chat ignore list"),
                 "usage": ["<user>"],
                 "group": _("Users")
             },
@@ -265,7 +265,7 @@ class Plugin(BasePlugin):
             },
             "unblock": {  # new
                 "callback": self.unblock_user_ip_command,
-                "description": _("Remove user from IP block list"),
+                "description": _("Remove user's IP address from block list"),
                 "usage": ["[user]"],
                 "group": _("Network Filters")
             },
@@ -277,7 +277,7 @@ class Plugin(BasePlugin):
             },
             "unignore": {
                 "callback": self.unignore_user_command,
-                "description": _("Remove user from ignore list"),
+                "description": _("Remove user from chat ignore list"),
                 "usage": ["[user]"],
                 "group": _("Users")
             },
@@ -303,7 +303,7 @@ class Plugin(BasePlugin):
                 "callback": self.whois_user_command,
                 "description": _("Show info about user"),
                 "usage": ["[user]"],
-                "aliases": ["info"],  # new
+                "aliases": ["info"],
                 "group": _("Users")
             },
             "browse": {
@@ -520,7 +520,7 @@ class Plugin(BasePlugin):
 
         self.core.shares.rescan_shares(force=force)
 
-    """ "User" """
+    """ "Users" """
 
     def add_buddy_command(self, args, user=None, **_unused):
 
