@@ -177,12 +177,10 @@ class BasePlugin:
 
         if room not in self.core.chatrooms.joined_rooms:
             self.echo_message("Not joined in room %s" % room)
+            return False
 
-        elif text:
-            self.core.queue.append(slskmessages.SayChatroom(room, text))
-            return True
-
-        return False
+        self.core.queue.append(slskmessages.SayChatroom(room, text))
+        return True
 
     def send_private(self, user, text, show_ui=True, switch_page=True):
         """ Send user message in private.
@@ -747,29 +745,16 @@ class PluginHandler:
                     else:
                         output = getattr(plugin, data.get("callback").__name__)(args)
 
-                    if output is True or output is False:
-                        # Tell the TextEntry if the command was consumed or not so it
-                        # can either clear itself or allow the user to edit and retry
-                        return output
+                    if output not in (True, False, None, 0):
+                        plugin.echo_message(output)
 
-                    if output is None or output == 0:
-                        # Assume the command has been consumed and needs no echo
-                        return True
+                    return bool(output is None or output)
 
-                    # The command returned something useful to echo, but note this is
-                    # of no use if we wanted to switch or close a chat tab because
-                    # the following echo will steal focus back to the command source.
-                    plugin.echo_message(output)
-
-                    # Tell the calling entity of our success or failure
-                    return bool(output)
-
-                plugin.echo_unknown_command(f"{prefix}{command}")
+                plugin.echo_unknown_command(command)
 
             except Exception:
                 self.show_plugin_error(module, sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2])
-                log.add(f"{command} command encountered an error in the plugin {module}!")
-                return -1
+                return False
 
         return None
 

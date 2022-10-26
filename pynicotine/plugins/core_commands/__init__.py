@@ -534,7 +534,6 @@ class Plugin(BasePlugin):
         if args:
             user = args
 
-        # TODO: None of the user commands return anything
         return self.core.userlist.add_user(user)
 
     def remove_buddy_command(self, args, user=None, **_unused):
@@ -605,8 +604,6 @@ class Plugin(BasePlugin):
         if args:
             user = args
 
-        # Echoing the IP will be difficult because it waits for a server response message
-        # could we use a user_resolve_notification() or similar?
         return self.core.request_ip_address(user)
 
     def ignore_ip_command(self, args, **_unused):
