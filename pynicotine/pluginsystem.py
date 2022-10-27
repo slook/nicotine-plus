@@ -177,12 +177,10 @@ class BasePlugin:
 
         if room not in self.core.chatrooms.joined_rooms:
             self.echo_message("Not joined in room %s" % room)
+            return False
 
-        elif text:
-            self.core.queue.append(slskmessages.SayChatroom(room, text))
-            return True
-
-        return False
+        self.core.queue.append(slskmessages.SayChatroom(room, text))
+        return True
 
     def send_private(self, user, text, show_ui=True, switch_page=True):
         """ Send user message in private.
@@ -700,7 +698,6 @@ class PluginHandler:
 
     def _trigger_command(self, command, args, user=None, room=None):
 
-        self.command_source = None
         plugin = None
 
         for module, plugin in self.enabled_plugins.items():
@@ -746,30 +743,18 @@ class PluginHandler:
                     else:
                         output = getattr(plugin, data.get("callback").__name__)(args)
 
-                    if output is True or output is False:
-                        # Tell the TextEntry if the command was consumed or not so it
-                        # can either clear itself or allow the user to edit and retry
-                        return output
+                    if output not in (True, False, None, 0):
+                        plugin.echo_message(output)
 
-                    if output is None or output == 0:
-                        # Assume the command has been consumed and needs no echo
-                        return True
-
-                    # The command returned something useful to echo, but note this is
-                    # of no use if we wanted to switch or close a chat tab because
-                    # the following echo will steal focus back to the command source.
-                    plugin.echo_message(output)
-
-                    # Tell the calling entity of our success or failure
-                    return bool(output)
+                    return bool(output is None or output)
 
                 plugin.echo_unknown_command(f"{prefix}{command}")
 
             except Exception:
                 self.show_plugin_error(module, sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2])
-                log.add(f"{command} command encountered an error in the plugin {module}!")
-                return -1
+                return False
 
+        self.command_source = None
         return None
 
     def _parse_command_arguments(self, plugin, command, args, data):
@@ -793,30 +778,27 @@ class PluginHandler:
 
         def illegal_usage():
 
-            position = num_optional= num_required = 0
+            position = num_required = 0
 
             for data_arg in usage:
                 used_arg = args_split[position].strip() if position < num_used else ""
 
-                if data_arg.startswith("["):
-                    num_optional += 1
-
-                elif data_arg.startswith("<"):
+                if data_arg.startswith("<"):
                     num_required += 1
 
                     if num_used < num_required:
-                        return f"Missing argument {data_arg} required"
+                        return f"Required {data_arg} argument missing"
 
                     if "|" in data_arg and used_arg not in data_arg.strip("<>").split("|"):
                         choices = data_arg.strip("<>").replace("|", ", ")
                         return f"Invalid argument >{used_arg}<" + " " + f"(choices: {choices})"
 
-                if data_arg == "" and num_used > num_optional + num_required:
+                if data_arg == "" and num_used > position:
                     # Empty string [""] in usage denotes EOL to enforce maximum number of arguments
                     if args.count('"') < (num_required * 2):
                         return f"Ambiguous argument >{used_arg}<" + " " + "(surround \"long names\" in quotes)"
-                    else:
-                        return f"Excessive argument >{used_arg}<" + " " + f"(takes {position} arguments)"
+
+                    return f"Excessive argument >{used_arg}<" + " " + f"(takes {position} arguments)"
 
                 position += 1
 
