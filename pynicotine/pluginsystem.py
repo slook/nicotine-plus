@@ -777,76 +777,46 @@ class PluginHandler:
         usage = data.get("usage")
 
         if not usage or len(usage) < 1:
-            # No usage criteria set, plugin has to deal with it
-            return True
+            return True  # no usage criteria defined
 
         def split_arguments():
-            """ Working draft, TODO: Shorten this code """
 
-            sarg = []
+            if '"' in args and "" in usage:
+                from shlex import split
+                return split(args)  # "long argument"
 
-            word_split = args.split()
-            word_count = len(word_split)
-
-            args_split = args.split(maxsplit=(len(usage) - 1))
-            args_count = len(args_split)
-
-            quote_split = args.split('"', maxsplit=(len(usage) - 1))
-            quote_count = len(quote_split)
-
-            space_quote_split = args.split(' "', maxsplit=(len(usage) - 1))
-            space_quote_count = len(space_quote_split)
-
-            log.add_debug("words " + str(word_count) + "    args " + str(args_count) + "     " + "    quotes " + str(quote_count) + "    quotespace " + str(space_quote_count))
-
-            # If "" appears in usage, then we enforce a maximum number of arguments
-            if (' "' in args and '" ' in args) or ('"' in args and '" ' in args) or (' "' in args and '"' in args):
-                # and "" in usage:
-                return quote_split
-
-            if word_count == args_count:
-                # Arguments do not contain spaces
-                return word_split
-
-            if ' "' not in args and word_count > len(usage):
-                # Take the first two single words as each argument, the rest as third argument
-                return args_split
-
-            return sarg
+            # Don't require the use of quotation marks
+            return args.split(maxsplit=(len(usage) - 1))
 
         args_split = split_arguments()
-        num_args = len(args_split)
+        num_used = len(args_split)
 
         def illegal_usage():
 
-            position = num_args_required = num_args_optional = 0
+            position = num_optional= num_required = 0
 
-            for def_arg in usage:
-                com_arg = args_split[position] if position < num_args else ""
+            for data_arg in usage:
+                used_arg = args_split[position].strip() if position < num_used else ""
 
-                # <required> argument
-                if def_arg.startswith("<"):
-                    num_args_required += 1
+                if data_arg.startswith("["):
+                    num_optional += 1
 
-                    if num_args < num_args_required:
-                        return f"Required {def_arg} argument missing"
+                elif data_arg.startswith("<"):
+                    num_required += 1
 
-                # [optional] argument
-                elif def_arg.startswith("["):
-                    num_args_optional += 1
+                    if num_used < num_required:
+                        return f"Missing argument {data_arg} required"
 
-                    # [-flag] options
-                    if "[-" in def_arg and com_arg.strip(" -[]") not in def_arg:
-                        return "Unknown option argument"
+                    if "|" in data_arg and used_arg not in data_arg.strip("<>").split("|"):
+                        choices = data_arg.strip("<>").replace("|", ", ")
+                        return f"Invalid argument >{used_arg}<" + " " + f"(choices: {choices})"
 
-                # choice|selection argument
-                if "|" in def_arg and com_arg.strip(" <|>") not in def_arg.strip(" <|>"):
-                    return f"Invalid argument >{com_arg}<\nChoices: {def_arg}"
-
-                # usage: [""] empty string enforces a maximum number of arguments
-                if def_arg == "" and "\"" not in com_arg:
-                    if num_args > num_args_optional + num_args_required:
-                        return "Excessive argument"
+                if data_arg == "" and num_used > num_optional + num_required:
+                    # Empty string [""] in usage denotes EOL to enforce maximum number of arguments
+                    if args.count('"') < (num_required * 2):
+                        return f"Ambiguous argument >{used_arg}<" + " " + "(surround \"long names\" in quotes)"
+                    else:
+                        return f"Excessive argument >{used_arg}<" + " " + f"(takes {position} arguments)"
 
                 position += 1
 
@@ -855,7 +825,6 @@ class PluginHandler:
         reject = illegal_usage()
 
         if reject:
-            # Parsed usage criteria not satisfied, provide helpful prompt for guidance
             description = data.get("description", "execute command").lower()
             output = (f"Cannot {description}: {reject}\n"
                       "Usage: %s %s" % ("/" + command, " ".join(usage) if usage else ""))
@@ -863,7 +832,6 @@ class PluginHandler:
             plugin.echo_message(output)
             return False
 
-        # Parsed usage criteria satified, continue to trigger command in the plugin
         # TODO: Consider parsing the list of split arguments to the command
         return True
 

@@ -35,7 +35,7 @@ class Plugin(BasePlugin):
             "rescan": {
                 "callback": self.rescan_command,
                 "description": _("Rescan shares"),
-                "usage": ["[-force]"],
+                "usage": ["[-force]", ""],
                 "group": _("Shares")
             },
             "hello": {
@@ -333,13 +333,13 @@ class Plugin(BasePlugin):
             "addshare": {
                 "callback": self.add_share_command,
                 "description": _("Add share"),
-                "usage": ["<public|private|buddy>", "<virtual_name>", "<path>", ""],  # "" enforce max 3 args
+                "usage": ["<public|private|buddy>", "<\"virtual name\">", "<\"folder path\">", ""],  # "" max 3 args
                 "group": _("Shares")
             },
             "removeshare": {
                 "callback": self.remove_share_command,
                 "description": _("Remove share"),
-                "usage": ["<public|private|buddy>", "<virtual_name>"],
+                "usage": ["<public|private|buddy>", "<\"virtual name\">", ""],  # "" max 2 args (quotes not mandatory)
                 "group": _("Shares")
             },
             "listshares": {
@@ -500,55 +500,17 @@ class Plugin(BasePlugin):
 
     def add_share_command(self, args):
 
-        # TODO: This argument parsing would be better if it were done in pluginsystem
+        from shlex import split  # support long arguments in quotes, needed here for <"virtual name">
 
-        args_split = args.split()
-        first_arg = args_split[0]  # .strip("\"")  # group names never contain spaces ("public"|"buddy"|"private")
-
-        if len(args_split) == 3:
-            second_arg = args_split[1]
-            third_arg = args_split[2]
-
-        elif '"' in args:
-            # one or more of the arguments contain a space
-            other_args = args.split(maxsplit=1)[1]  # [""" "virtual name" "path to folder" """]
-
-            second_arg = third_arg = None
-
-            start = after = -1
-
-            # get the 1st quoted argument, which might contain some spaces "in quotation marks"
-            start = other_args.find('"', after + 1)
-            after = other_args.find('"', start + 1)
-
-            if start > -1 and after > -1:
-                second_arg = other_args[start + 1:after]
-            else:
-                self.echo_message("No name")
-                return False
-
-            third_arg = other_args[after:len(other_args)].strip(' "')
-
-            self.log(str(first_arg))
-            self.log(str(second_arg))
-            self.log(str(third_arg))
-
-        else:
-            self.echo_message("Long names need \"quotation\" marks")
-            return False
-
-        # args_split = args.split(maxsplit=2)  # "\""
-        group, name, path = first_arg, second_arg, third_arg  # args_split[0], args_split[1], args_split[2]
+        args_split = split(args)
+        group, name, path = args_split[0], args_split[1], args_split[2]
 
         self.echo_message(f"nothing here yet, you entered: group='{group}' name='{name}' path='{path}'")
 
     def remove_share_command(self, args):
 
-        if "\"" in args:
-            self.echo_message(f"\"\" in args")
-
         args_split = args.split(maxsplit=1)
-        group, name = args_split[0], args_split[1]
+        group, name = args_split[0], args_split[1].strip("\"' ")  # don't require quotes
 
         self.echo_message(f"nothing here yet, you entered: group='{group}' name='{name}'")
 
