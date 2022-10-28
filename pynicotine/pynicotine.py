@@ -59,6 +59,50 @@ from pynicotine.userinfo import UserInfo
 from pynicotine.userlist import UserList
 
 
+class InputProcessor():
+    """ InputProcessor captures CLI keyboard input events for the console """
+
+    def __init__(self, core):
+
+        self.core = core
+
+    def start(self):
+
+        thread = threading.Thread(target=self._process_input)
+        thread.name = "InputProcessor"
+        thread.daemon = True
+        thread.start()
+
+    def _process_input(self):
+
+        while not self.core.shutdown:
+            try:
+                user_input = input()
+
+            except EOFError:
+                return
+
+            if not user_input:
+                continue
+
+            command, *args = user_input.split(maxsplit=1)
+
+            if command.startswith("/"):
+                command = command[1:]
+
+            if args:
+                (args,) = args
+
+            self.core.network_callback([slskmessages.CLICommand(command, args)])
+
+            # Don't block input during command execution
+            break
+
+    def cli_command(self, msg):
+        self.core.pluginhandler.trigger_cli_command_event(msg.command, msg.args or "")
+        self.start()
+
+
 class NicotineCore:
     """ NicotineCore contains handlers for various messages from the networking thread.
     This class links the networking thread and user interface. """
@@ -104,28 +148,6 @@ class NicotineCore:
         self.watched_users = set()
         self.ip_requested = set()
 
-    def process_input(self):
-
-        while not self.shutdown:
-            try:
-                user_input = input()
-
-            except EOFError:
-                return
-
-            if not user_input:
-                continue
-
-            command, *args = user_input.split(maxsplit=1)
-
-            if command.startswith("/"):
-                command = command[1:]
-
-            if args:
-                (args,) = args
-
-            self.network_callback([slskmessages.CLICommand(command, args)])
-
     """ Actions """
 
     def start(self, ui_callback, network_callback):
@@ -168,10 +190,9 @@ class NicotineCore:
         self.pluginhandler = PluginHandler(self, config)
         self.pluginhandler.load_enabled()
 
-        thread = threading.Thread(target=self.process_input)
-        thread.name = "InputProcessor"
-        thread.daemon = True
-        thread.start()
+        # CLI keyboard input
+        self.input_processor = InputProcessor(self)
+        self.input_processor.start()
 
         # Callback handlers for messages
         self.events = {
@@ -288,7 +309,7 @@ class NicotineCore:
             slskmessages.PrivateRoomRemoveOperator: self.chatrooms.private_room_remove_operator,
             slskmessages.PublicRoomMessage: self.chatrooms.public_room_message,
             slskmessages.ShowConnectionErrorMessage: self.show_connection_error_message,
-            slskmessages.CLICommand: self.cli_command,
+            slskmessages.CLICommand: self.input_processor.cli_command,
             slskmessages.UnknownPeerMessage: self.dummy_message
         }
 
@@ -483,9 +504,6 @@ class NicotineCore:
     def dummy_message(msg):
         # Ignore received message
         pass
-
-    def cli_command(self, msg):
-        self.pluginhandler.trigger_cli_command_event(msg.command, msg.args or "")
 
     def show_connection_error_message(self, msg):
         """ Request UI to show error messages related to connectivity """

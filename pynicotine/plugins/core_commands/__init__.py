@@ -35,7 +35,7 @@ class Plugin(BasePlugin):
             "rescan": {
                 "callback": self.rescan_command,
                 "description": _("Rescan shares"),
-                "usage": ["[-force]"],
+                "usage": ["[-force]", ""],
                 "group": _("Shares")
             },
             "hello": {
@@ -324,13 +324,13 @@ class Plugin(BasePlugin):
             "addshare": {
                 "callback": self.add_share_command,
                 "description": _("Add share"),
-                "usage": ["<public|private|buddy>", "<virtual_name>", "<path>"],
+                "usage": ["<public|private|buddy>", "<\"virtual name\">", "<\"folder path\">", ""],  # "" max 3 args
                 "group": _("Shares")
             },
             "removeshare": {
                 "callback": self.remove_share_command,
                 "description": _("Remove share"),
-                "usage": ["<public|private|buddy>", "<virtual_name>"],
+                "usage": ["<public|private|buddy>", "<\"virtual name\">", ""],  # "" max 2 args (quotes not mandatory)
                 "group": _("Shares")
             }
         }
@@ -361,7 +361,7 @@ class Plugin(BasePlugin):
         num_commands = 0
 
         for command, data in command_list.items():
-            command_message = command if prefix else command.lstrip("/")
+            command_message = command
             usage = " ".join(data.get("usage", []))
             aliases = f", {prefix}".join(data.get("aliases", []))
 
@@ -392,7 +392,7 @@ class Plugin(BasePlugin):
             command_groups[group].append("    %s  -  %s" % (command_message, description))
 
         if not num_commands:
-            self.echo_unknown_command(f"{prefix}{query}")
+            self.echo_unknown_command(query)
             return False
 
         output = f"Listing {num_commands} {interface} commands" + (" " + f"matching \"{query}\":" if query else ":")
@@ -499,7 +499,9 @@ class Plugin(BasePlugin):
 
     def add_share_command(self, args):
 
-        args_split = args.split(maxsplit=2)  # "\""
+        from shlex import split  # support long arguments in quotes, needed here for <"virtual name">
+
+        args_split = split(args)
         group, name, path = args_split[0], args_split[1], args_split[2]
 
         self.echo_message(f"nothing here yet, you entered: group='{group}' name='{name}' path='{path}'")
@@ -507,7 +509,7 @@ class Plugin(BasePlugin):
     def remove_share_command(self, args):
 
         args_split = args.split(maxsplit=1)
-        group, name = args_split[0], args_split[1]
+        group, name = args_split[0], args_split[1].strip("\"' ")  # don't require quotes
 
         self.echo_message(f"nothing here yet, you entered: group='{group}' name='{name}'")
 

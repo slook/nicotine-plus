@@ -24,6 +24,7 @@ from collections import deque
 
 from pynicotine.config import config
 from pynicotine.logfacility import log
+from pynicotine.cli.utils import prompt_confirm
 
 
 class Application:
@@ -145,8 +146,21 @@ class Application:
         pass
 
     def confirm_quit(self, _remember):
-        # Not implemented
-        pass
+
+        confirm = prompt_confirm(
+            # parent=self.window,
+            title=_('Quit Nicotine+'),
+            message=_('Do you really want to exit?')
+            # second_button=_("_Quit")
+            # option_label=_("Remember choice") if remember else None,
+            # callback=self.confirm_quit_response
+        )
+
+        if confirm:  # == 2:  # 'Quit'
+            #if remember:
+            #    config.sections["ui"]["exitdialog"] = 0
+
+            self.core.quit()
 
     def quit(self):
         # Not implemented
