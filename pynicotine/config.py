@@ -54,7 +54,6 @@ class Config:
 
         config_dir, self.data_dir = self.get_user_directories()
         self.filename = os.path.join(config_dir, "config")
-        self.plugin_dir = os.path.join(self.data_dir, "plugins")
         self.version = "3.3.0.dev3"
         self.python_version = sys.version
         self.gtk_version = ""
@@ -428,7 +427,8 @@ class Config:
                 "notification_popup_folder": True,
                 "notification_popup_private_message": True,
                 "notification_popup_chatroom": False,
-                "notification_popup_chatroom_mention": True
+                "notification_popup_chatroom_mention": True,
+                "notification_popup_wish": True
             },
             "plugins": {
                 "enable": True,
@@ -660,13 +660,13 @@ class Config:
 
                 # Check if config section exists in defaults
                 if i not in self.defaults and i not in self.removed_options:
-                    log.add(_("Unknown config section '%s'"), i)
+                    log.add_debug("Unknown config section '%s'", i)
 
                 # Check if config option exists in defaults
                 elif (j not in self.defaults.get(i, {}) and j not in self.removed_options.get(i, {})
                         and i != "plugins" and j != "filter"):
-                    log.add(_("Unknown config option '%(option)s' in section '%(section)s'"),
-                            {'option': j, 'section': i})
+                    log.add_debug("Unknown config option '%(option)s' in section '%(section)s'",
+                                  {'option': j, 'section': i})
 
                 else:
                     """ Attempt to get the default value for a config option. If there's no default
