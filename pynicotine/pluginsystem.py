@@ -735,8 +735,6 @@ class PluginHandler:
                     if not self._parse_command_arguments(plugin, command, args, data):
                         return False
 
-                    output = None
-
                     if room is not None:
                         output = getattr(plugin, data.get("callback").__name__)(args, room=room)
 
