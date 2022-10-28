@@ -330,6 +330,11 @@ class Plugin(BasePlugin):
         }
 
         cli_commands = {
+            "listshares": {
+                "callback": self.list_shares_command,
+                "description": _("List shares"),
+                "group": _("Shares")
+            },
             "addshare": {
                 "callback": self.add_share_command,
                 "description": _("Add share"),
@@ -341,13 +346,7 @@ class Plugin(BasePlugin):
                 "description": _("Remove share"),
                 "usage": ["<public|private|buddy>", "<\"virtual name\">", ""],  # "" max 2 args (quotes not mandatory)
                 "group": _("Shares")
-            },
-            "listshares": {
-                "callback": self.list_shares_command,
-                "description": _("List shares"),
-                "group": _("Shares")
-            },
-
+            }
         }
 
         self.chatroom_commands = {**commands, **chat_commands, **chatroom_commands}
@@ -376,33 +375,37 @@ class Plugin(BasePlugin):
         num_commands = 0
 
         for command, data in command_list.items():
-            command_message = command if prefix else command.lstrip("/")
+            command_message = command
             usage = " ".join(data.get("usage", []))
-            aliases = data.get("aliases", [])
+            aliases = f", {prefix}".join(data.get("aliases", []))
 
             if aliases:
-                command_message = command_message + f", {prefix}" + f", {prefix}".join(aliases)
+                command_message += f", {prefix}" + aliases
 
             if usage:
                 command_message += " " + usage
 
             description = data.get("description", "No description")
             group = data.get("group", f"{self.config.application_name} {_('Commands')}")
-            group_words = group.lower()
 
-            if not args or query in command_message or query in group_words:
-                if group not in command_groups:
-                    command_groups[group] = []
+            if args and query not in command_message and query not in group.lower():
+                continue
 
-                command_groups[group].append("    %s  -  %s" % (command_message, description))
-                num_commands += 1
+            num_commands += 1
+
+            if interface == "cli":
+                command_message = command_message.lstrip("/").ljust(24)
+
+            if group not in command_groups:
+                command_groups[group] = []
+
+            command_groups[group].append("    %s  -  %s" % (command_message, description))
 
         if not num_commands:
-            self.echo_unknown_command(f"{prefix}{query}")
+            self.echo_unknown_command(query)
             return False
 
-        output = f"Listing {num_commands} {interface} commands with <required> and [optional] arguments"
-        output += " " + f"matching \"{query}\"" + ":" if query else ":"
+        output = f"Listing {num_commands} {interface} commands" + (" " + f"matching \"{query}\":" if query else ":")
 
         for group, commands in command_groups.items():
             output += "\n\n" + "  " + group + ":"
@@ -410,12 +413,16 @@ class Plugin(BasePlugin):
             for command in commands:
                 output += "\n" + command
 
-        output += "\n\n" + "Use /help [query] (without brackets) to find similar commands or aliases"
-        output += "\n" + "Start a command using / (forward slash)" if prefix else ""
+        output += "\n"
 
-        return output
+        if not query:
+            output += "\n" + f"Type {prefix}help [query] (without brackets) to list similar commands or aliases"
 
-    """ "Chats" """
+        if prefix:
+            output += "\n" + "Start a command using / (forward slash)"
+
+        self.echo_message(output)
+        return None
 
     def clear_command(self, _args, user=None, room=None):
 
