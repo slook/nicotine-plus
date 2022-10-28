@@ -699,7 +699,6 @@ class PluginHandler:
 
     def _trigger_command(self, command, args, user=None, room=None):
 
-        self.command_source = None
         plugin = None
 
         for module, plugin in self.enabled_plugins.items():
@@ -755,66 +754,67 @@ class PluginHandler:
                 self.show_plugin_error(module, sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2])
                 return False
 
+        self.command_source = None
         return None
 
     def _parse_command_arguments(self, plugin, command, args, data):
 
-        usage = data.get("usage")
+        usage = data.get("usage", [])
 
         if not usage or len(usage) < 1:
-            # No usage criteria set, plugin has to deal with it
-            return True
+            return True  # no usage criteria defined
 
-        # TODO: Support arguments "containing spaces in quotes"
-        args_split = args.split(maxsplit=(len(usage) - 1))
-        num_args = len(args_split)
+        def split_arguments():
 
-        reject = None
-        position = num_args_required = num_args_optional = 0
+            if '"' in args and "" in usage:
+                from shlex import split
+                return split(args)  # "long argument"
 
-        for def_arg in usage:
-            com_arg = args_split[position] if position < num_args else ""
+            # Don't require the use of quotation marks
+            return args.split(maxsplit=(len(usage) - 1))
 
-            # <required> argument
-            if def_arg.startswith("<"):
-                num_args_required += 1
+        args_split = split_arguments()
+        num_used = len(args_split)
 
-                if num_args < num_args_required:
-                    reject = f"Required {def_arg} argument missing"
-                    break
+        def illegal_usage():
 
-            # [optional] argument
-            elif def_arg.startswith("["):
-                num_args_optional += 1
+            position = num_required = 0
 
-                # [-flag] options (the -hyphen doesn't have to be entered by the user)
-                if "[-" in def_arg and com_arg not in def_arg:
-                    reject = "Unknown option argument"
-                    break
+            for data_arg in usage:
+                used_arg = args_split[position].strip() if position < num_used else ""
 
-            # choice|selection argument
-            if "|" in def_arg and com_arg not in def_arg:
-                reject = f"Invalid argument >{com_arg}<\nChoices: {def_arg}"
-                break
+                if data_arg.startswith("<"):
+                    num_required += 1
 
-            # usage: [""] empty string disallows any further arguments
-            if def_arg == "":
-                if num_args > num_args_optional + num_args_required:
-                    reject = "Excessive argument"
-                    break
+                    if num_used < num_required:
+                        return f"Required {data_arg} argument missing"
 
-            position += 1
+                    if "|" in data_arg and used_arg not in data_arg.strip("<>").split("|"):
+                        choices = data_arg.strip("<>").replace("|", ", ")
+                        return f"Invalid argument >{used_arg}<" + " " + f"(choices: {choices})"
+
+                if data_arg == "" and num_used > position:
+                    # Empty string [""] in usage denotes EOL to enforce maximum number of arguments
+                    if args.count('"') < (num_required * 2):
+                        return f"Ambiguous argument >{used_arg}<" + " " + "(surround \"long names\" in quotes)"
+
+                    return f"Excessive argument >{used_arg}<" + " " + f"(takes {position} arguments)"
+
+                position += 1
+
+            return False
+
+        reject = illegal_usage()
 
         if reject:
-            # Parsed usage criteria not satisfied, provide helpful prompt for guidance
             description = data.get("description", "execute command").lower()
             output = (f"Cannot {description}: {reject}\n"
-                      "Usage: %s %s" % ("/" + command, " ".join(usage) if usage else ""))
+                      "Usage: %s %s" % ("/" + command, " ".join(usage)))
 
             plugin.echo_message(output)
             return False
 
-        # Parsed usage criteria satified, continue to trigger command in the plugin
+        # TODO: Consider parsing the list of split arguments to the command
         return True
 
     def trigger_event(self, function_name, args):
