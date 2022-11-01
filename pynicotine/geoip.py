@@ -276,8 +276,8 @@ class GeoIP:
 
     def __init__(self):
 
-        from pynicotine.geoip.ip2location import IP2Location
-        self.ip2location = IP2Location(os.path.join(os.path.dirname(__file__), "ipcountrydb.bin"))
+        from pynicotine.external.ip2location import IP2Location
+        self.ip2location = IP2Location(os.path.join(os.path.dirname(__file__), "external", "ipcountrydb.bin"))
 
     @classmethod
     def country_code_to_name(cls, country_code):

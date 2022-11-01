@@ -189,9 +189,9 @@ class BasePlugin:
         switch_page controls whether the user's private chat view should be opened. """
 
         if show_ui:
-            self.core.privatechats.show_user(user, switch_page=switch_page)
+            self.core.privatechat.show_user(user, switch_page=switch_page)
 
-        return self.core.privatechats.send_message(user, text)
+        return self.core.privatechat.send_message(user, text)
 
     def echo_public(self, room, text, message_type="local"):
         """ Display a raw message in chat rooms (not sent to others).
@@ -205,8 +205,8 @@ class BasePlugin:
         message_type changes the type (and color) of the message in the UI.
         available message_type values: action, remote, local, hilite """
 
-        self.core.privatechats.show_user(user)
-        self.core.privatechats.echo_message(user, text, message_type)
+        self.core.privatechat.show_user(user)
+        self.core.privatechat.echo_message(user, text, message_type)
 
     def send_message(self, text):
         """ Convenience function to send a message to the same user/room
@@ -397,7 +397,7 @@ class PluginHandler:
             self.core.chatrooms.update_completions()
 
         if plugin.private_chat_commands:
-            self.core.privatechats.update_completions()
+            self.core.privatechat.update_completions()
 
     def get_plugin_path(self, plugin_name):
 

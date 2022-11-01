@@ -95,7 +95,7 @@ class Scanner:
         try:
             rename_process(b'nicotine-scan')
 
-            from pynicotine.metadata.tinytag import TinyTag
+            from pynicotine.external.tinytag import TinyTag
             self.tinytag = TinyTag()
 
             if not Shares.load_shares(self.share_dbs, self.share_db_paths, remove_failed=True):
@@ -944,7 +944,7 @@ class Shares:
 
         if not checkuser:
             message = self.core.ban_message % reason
-            self.core.privatechats.send_automatic_message(user, message)
+            self.core.privatechat.send_automatic_message(user, message)
 
         shares_list = None
 
@@ -973,7 +973,7 @@ class Shares:
 
         if not checkuser:
             message = self.core.ban_message % reason
-            self.core.privatechats.send_automatic_message(username, message)
+            self.core.privatechat.send_automatic_message(username, message)
 
         normalshares = self.share_dbs.get("streams")
         buddyshares = self.share_dbs.get("buddystreams")

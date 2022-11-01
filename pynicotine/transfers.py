@@ -117,14 +117,8 @@ class Transfers:
         self.uploads_file_name = os.path.join(config.data_dir, 'uploads.json')
 
         self.network_callback = network_callback
-        self.downloadsview = None
-        self.uploadsview = None
-
-        if hasattr(ui_callback, "downloads"):
-            self.downloadsview = ui_callback.downloads
-
-        if hasattr(ui_callback, "uploads"):
-            self.uploadsview = ui_callback.uploads
+        self.downloadsview = getattr(ui_callback, "downloads", None)
+        self.uploadsview = getattr(ui_callback, "uploads", None)
 
         self.transfer_timeout_timer_id = None
         self.download_queue_timer_id = None
@@ -2538,46 +2532,3 @@ class Transfers:
 
     def quit(self):
         self.save_transfers()
-
-
-class Statistics:
-
-    def __init__(self, ui_callback=None):
-
-        self.ui_callback = None
-        self.session_stats = {}
-
-        # Only populate total since date on first run
-        if (not config.sections["statistics"]["since_timestamp"]
-                and config.sections["statistics"] == config.defaults["statistics"]):
-            config.sections["statistics"]["since_timestamp"] = int(time.time())
-
-        for stat_id in config.defaults["statistics"]:
-            self.session_stats[stat_id] = 0 if stat_id != "since_timestamp" else int(time.time())
-
-        if hasattr(ui_callback, "statistics"):
-            self.ui_callback = ui_callback.statistics
-
-            for stat_id in config.defaults["statistics"]:
-                self.update_ui(stat_id)
-
-    def append_stat_value(self, stat_id, stat_value):
-
-        self.session_stats[stat_id] += stat_value
-        config.sections["statistics"][stat_id] += stat_value
-        self.update_ui(stat_id)
-
-    def update_ui(self, stat_id):
-
-        if self.ui_callback:
-            session_stat_value = self.session_stats[stat_id]
-            total_stat_value = config.sections["statistics"][stat_id]
-            self.ui_callback.update_stat_value(stat_id, session_stat_value, total_stat_value)
-
-    def reset_stats(self):
-
-        for stat_id in config.defaults["statistics"]:
-            stat_value = 0 if stat_id != "since_timestamp" else int(time.time())
-            self.session_stats[stat_id] = config.sections["statistics"][stat_id] = stat_value
-
-            self.update_ui(stat_id)
