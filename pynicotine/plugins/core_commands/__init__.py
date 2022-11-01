@@ -514,7 +514,8 @@ class Plugin(BasePlugin):
         self.echo_message(f"nothing here yet, you entered: group='{group}' name='{name}'")
 
     def list_shares_command(self, _args):
-        self.echo_message(self.core.shares.list_shares())
+        # TODO: self.echo_message(self.core.shares.list_shares())
+        self.echo_message("nothing here yet")
 
     def rescan_command(self, args, **_unused):
 

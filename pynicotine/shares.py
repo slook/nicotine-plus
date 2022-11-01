@@ -32,6 +32,7 @@ import time
 from threading import Thread
 
 from pynicotine import slskmessages
+from pynicotine.config import config
 from pynicotine.logfacility import log
 from pynicotine.slskmessages import UINT_LIMIT
 from pynicotine.slskmessages import UserStatus
@@ -76,9 +77,9 @@ class Scanner:
     """ Separate process responsible for building shares. It handles scanning of
     folders and files, as well as building databases and writing them to disk. """
 
-    def __init__(self, config, queue, shared_folders, share_db_paths, init=False, rescan=True, rebuild=False):
+    def __init__(self, config_obj, queue, shared_folders, share_db_paths, init=False, rescan=True, rebuild=False):
 
-        self.config = config
+        self.config = config_obj
         self.queue = queue
         self.shared_folders, self.shared_buddy_folders = shared_folders
         self.share_dbs = {}
@@ -177,6 +178,27 @@ class Scanner:
         elif os.path.isdir(db_path_encoded):
             import shutil
             shutil.rmtree(db_path_encoded)
+
+    def real2virtual(self, path):
+
+        path = path.replace('/', '\\')
+
+        for virtual, real, *_unused in Shares.virtual_mapping(self.config):
+            # Remove slashes from share name to avoid path conflicts
+            virtual = virtual.replace('/', '_').replace('\\', '_')
+
+            real = real.replace('/', '\\')
+            if path == real:
+                return virtual
+
+            # Use rstrip to remove trailing separator from root directories
+            real = real.rstrip('\\') + '\\'
+
+            if path.startswith(real):
+                virtualpath = virtual + '\\' + path[len(real):]
+                return virtualpath
+
+        return "__INTERNAL_ERROR__" + path
 
     def set_shares(self, share_type, files=None, streams=None, mtimes=None, wordindex=None):
 
@@ -316,7 +338,7 @@ class Scanner:
             folder_stat = os.stat(encode_path(folder))
 
         folder_unchanged = False
-        virtual_folder = Shares.real2virtual_cls(folder, self.config)
+        virtual_folder = self.real2virtual(folder)
         mtime = folder_stat.st_mtime
 
         file_list = []
@@ -494,12 +516,11 @@ class Scanner:
 
 class Shares:
 
-    def __init__(self, core, config, queue, network_callback=None, ui_callback=None, init_shares=True):
+    def __init__(self, core, queue, network_callback=None, ui_callback=None, init_shares=True):
 
         self.core = core
         self.network_callback = network_callback
         self.ui_callback = ui_callback
-        self.config = config
         self.queue = queue
         self.share_dbs = {}
         self.requested_share_times = {}
@@ -511,16 +532,16 @@ class Shares:
 
         self.convert_shares()
         self.share_db_paths = [
-            ("files", os.path.join(self.config.data_dir, "files.db")),
-            ("streams", os.path.join(self.config.data_dir, "streams.db")),
-            ("wordindex", os.path.join(self.config.data_dir, "wordindex.db")),
-            ("fileindex", os.path.join(self.config.data_dir, "fileindex.db")),
-            ("mtimes", os.path.join(self.config.data_dir, "mtimes.db")),
-            ("buddyfiles", os.path.join(self.config.data_dir, "buddyfiles.db")),
-            ("buddystreams", os.path.join(self.config.data_dir, "buddystreams.db")),
-            ("buddywordindex", os.path.join(self.config.data_dir, "buddywordindex.db")),
-            ("buddyfileindex", os.path.join(self.config.data_dir, "buddyfileindex.db")),
-            ("buddymtimes", os.path.join(self.config.data_dir, "buddymtimes.db"))
+            ("files", os.path.join(config.data_dir, "files.db")),
+            ("streams", os.path.join(config.data_dir, "streams.db")),
+            ("wordindex", os.path.join(config.data_dir, "wordindex.db")),
+            ("fileindex", os.path.join(config.data_dir, "fileindex.db")),
+            ("mtimes", os.path.join(config.data_dir, "mtimes.db")),
+            ("buddyfiles", os.path.join(config.data_dir, "buddyfiles.db")),
+            ("buddystreams", os.path.join(config.data_dir, "buddystreams.db")),
+            ("buddywordindex", os.path.join(config.data_dir, "buddywordindex.db")),
+            ("buddyfileindex", os.path.join(config.data_dir, "buddyfileindex.db")),
+            ("buddymtimes", os.path.join(config.data_dir, "buddymtimes.db"))
         ]
 
         if not init_shares:
@@ -532,41 +553,16 @@ class Shares:
 
     def init_shares(self):
 
-        rescan_startup = (self.config.sections["transfers"]["rescanonstartup"]
-                          and not self.config.need_config())
+        rescan_startup = (config.sections["transfers"]["rescanonstartup"]
+                          and not config.need_config())
 
         self.rescan_shares(init=True, rescan=rescan_startup)
-
-    def real2virtual(self, path):
-        return self.real2virtual_cls(path, self.config)
-
-    @classmethod
-    def real2virtual_cls(cls, path, config):
-
-        path = path.replace('/', '\\')
-
-        for virtual, real, *_unused in cls._virtualmapping(config):
-            # Remove slashes from share name to avoid path conflicts
-            virtual = virtual.replace('/', '_').replace('\\', '_')
-
-            real = real.replace('/', '\\')
-            if path == real:
-                return virtual
-
-            # Use rstrip to remove trailing separator from root directories
-            real = real.rstrip('\\') + '\\'
-
-            if path.startswith(real):
-                virtualpath = virtual + '\\' + path[len(real):]
-                return virtualpath
-
-        return "__INTERNAL_ERROR__" + path
 
     def virtual2real(self, path):
 
         path = path.replace('/', os.sep).replace('\\', os.sep)
 
-        for virtual, real, *_unused in self._virtualmapping(self.config):
+        for virtual, real, *_unused in self.virtual_mapping(config):
             # Remove slashes from share name to avoid path conflicts
             virtual = virtual.replace('/', '_').replace('\\', '_')
 
@@ -580,10 +576,10 @@ class Shares:
         return "__INTERNAL_ERROR__" + path
 
     @staticmethod
-    def _virtualmapping(config):
+    def virtual_mapping(config_obj):
 
-        mapping = config.sections["transfers"]["shared"][:]
-        mapping += config.sections["transfers"]["buddyshared"]
+        mapping = config_obj.sections["transfers"]["shared"][:]
+        mapping += config_obj.sections["transfers"]["buddyshared"]
 
         return mapping
 
@@ -642,10 +638,10 @@ class Shares:
                     (shared_folder, virtual))
             return virtual, shared_folder
 
-        self.config.sections["transfers"]["shared"] = [_convert_to_virtual(x)
-                                                       for x in self.config.sections["transfers"]["shared"]]
-        self.config.sections["transfers"]["buddyshared"] = [_convert_to_virtual(x)
-                                                            for x in self.config.sections["transfers"]["buddyshared"]]
+        config.sections["transfers"]["shared"] = [_convert_to_virtual(x)
+                                                  for x in config.sections["transfers"]["shared"]]
+        config.sections["transfers"]["buddyshared"] = [_convert_to_virtual(x)
+                                                       for x in config.sections["transfers"]["buddyshared"]]
 
     @classmethod
     def load_shares(cls, shares, dbs, remove_failed=False):
@@ -692,12 +688,12 @@ class Shares:
 
         if not realfilename.startswith("__INTERNAL_ERROR__"):
             if bshared_files is not None:
-                for row in self.config.sections["server"]["userlist"]:
+                for row in config.sections["server"]["userlist"]:
                     if row[0] != user:
                         continue
 
                     # Check if buddy is trusted
-                    if self.config.sections["transfers"]["buddysharestrustedonly"] and not row[4]:
+                    if config.sections["transfers"]["buddysharestrustedonly"] and not row[4]:
                         break
 
                     for fileinfo in bshared_files.get(str(folder), []):
@@ -799,7 +795,7 @@ class Shares:
 
         scanner_queue = multiprocessing.Queue()
         scanner = Scanner(
-            self.config,
+            config,
             scanner_queue,
             shared_folders,
             self.share_db_paths,
@@ -816,8 +812,8 @@ class Shares:
 
     def get_shared_folders(self):
 
-        shared_folders = self.config.sections["transfers"]["shared"][:]
-        shared_folders_buddy = self.config.sections["transfers"]["buddyshared"][:]
+        shared_folders = config.sections["transfers"]["shared"][:]
+        shared_folders_buddy = config.sections["transfers"]["buddyshared"][:]
 
         return shared_folders, shared_folders_buddy
 
@@ -858,139 +854,42 @@ class Shares:
 
         return False
 
-    def list_shares(self):
-        """ Returns ONE string with all readable shares and missing shares """
+    def check_shares_available(self):
 
-        (num_reads, num_fails, num_total, summary_total, summary_reads,
-         summary_fails, reads_text, fails_text, _fails) = self.count_shares(logging=False)
+        share_groups = self.get_shared_folders()
+        unavailable_shares = []
 
-        all_text = "\n" + summary_total
+        for share in share_groups:
+            for virtual_name, folder_path, *_unused in share:
+                if not os.access(encode_path(folder_path), os.R_OK):
+                    unavailable_shares.append((virtual_name, folder_path))
 
-        if num_total:
-            all_text += "\n" + summary_reads
-
-            if num_fails:
-                all_text += "\n" + summary_fails
-
-        all_text += "\n\n" + reads_text if num_reads else "\n"
-        all_text += "\n\n" + fails_text if num_fails else "\n"
-        all_text += "\n\n" + _(f"{summary_reads} out of {summary_total}")
-
-        return all_text
-
-    def count_shares(self, shares=None, group=None, logging=True):
-
-        reads, fails = self.check_shares(shares=shares, group=group)
-
-        num_reads = len(reads)
-        num_fails = len(fails)
-        num_total = num_reads + num_fails
-
-        summary_total = _(f"{num_total} shares configured")
-        summary_reads = _(f"{num_reads} shares ready")
-        summary_fails = _(f"{num_fails} shares not found")
-
-        reads_text = '\n\n'.join(reads)
-        fails_text = '\n\n'.join(fails)
-
-        if logging:
-            log.add(summary_total)
-
-            if num_total:
-                log.add(summary_reads)
-                if num_fails:
-                    log.add(summary_fails)
-            else:
-                fails.insert(0, summary_total)
-
-            if reads and num_total:
-                log.add_transfer(f"{summary_reads}:\n\n{reads_text}\n")
-
-            if fails and num_total:
-                log.add_transfer(f"{summary_fails}:\n\n{fails_text}\n")
-
-            log.add_transfer(_(f"{summary_reads} out of {summary_total}"))
-
-        return (num_reads, num_fails, num_total, summary_total,
-                summary_reads, summary_fails, reads_text, fails_text, fails)
-
-    def check_shares(self, shares=None, group=None):
-        """ Returns TWO lists of strings: readable shares, and missing shares.
-        group specifies which shares to check: "normal", "buddy", etc. """
-
-        if shares is None:
-            # Triggered by list shares command
-            shares = self.get_shared_folders()
-
-        group_index = self.get_group_index(group) if group is not None else 0
-        reads, fails = [], []
-
-        for table in shares:
-            group_name = self.get_group_name(group_index).title()
-
-            for virtual, folder, *_unused in table:
-                if os.access(folder, os.R_OK):
-                    reads.append(_(f"{group_name} share \"{virtual}\" ready at:\n{folder}"))
-                else:
-                    fails.append(_(f"{group_name} share \"{virtual}\" not found at:\n{folder}"))
-
-            if group is not None:
-                # Only check a specific group (ie just "normal" or "buddy" shares, etc)
-                break
-
-            group_index += 1
-
-        return reads, fails
-
-    def confirm_force_rescan(self, shares):
-
-        # Check if any shares are missing and log counts
-        (num_reads, num_fails, num_total, summary_total,
-         summary_reads, summary_fails, _reads_text, fails_text, fails) = self.count_shares(shares)
-
-        if num_reads and not num_fails:
-            # Continue initializing shares, and do the rescan now
-            return True
-
-        log.add(_("Rescan aborted") + ": " + (fails_text.replace(":\n", " ") if num_fails == 1 else summary_fails))
-
-        if self.ui_callback:
-            title_text = _("Rescan aborted") + ": " + (summary_fails if num_total else summary_total)
-            summary = _(f"{summary_reads} out of {summary_total}")
-            summary += ("\n" + _(f"Force rescan will exclude {num_fails} shares") if num_reads else
-                        "\n" + _("Nothing to scan"))
-
-            if num_fails > 5:
-                # Abbreviate message_text, the dialog may get too tall if there's many fails!
-                fails_text = '\n\n'.join(fails[:5]) + "\n\n…\n"
-
-            epilog = _("Verify disk(s) are accessible then retry to check again") if num_total else ""
-            message_text = f"{fails_text}\n\n{summary}\n\n{epilog}"
-
-            # Prompt with retry/force rescan options only offered if relevant and appropriate
-            self.ui_callback.confirm_force_rescan(title_text, message_text, num_total, num_reads)
-
-        # We don't wait for the response (and we need to scan again from scratch in any case),
-        # so always continue initializing share(s) in the background by setting rescan to False
-        return False
+        return unavailable_shares
 
     def rescan_shares(self, init=False, rescan=True, rebuild=False, use_thread=True, force=False):
 
         if self.rescanning:
             return None
 
-        shared_folders = self.get_shared_folders()
-
-        if not force:
+        if rescan and not force:
             # Verify all shares are mounted before allowing destructive rescan
-            rescan = (rescan and self.confirm_force_rescan(shared_folders))
-        else:
-            log.add(_("Shares check skipped, using force rescan"))
+            unavailable_shares = self.check_shares_available()
 
-        # Hand over database control to the scanner process (it needs to initialize in any case)
+            if unavailable_shares:
+                log.add(_("Rescan aborted due to unavailable shares"))
+                rescan = False
+
+                if self.ui_callback:
+                    self.ui_callback.shares_unavailable(unavailable_shares)
+
+                if not init:
+                    return None
+
+        # Hand over database control to the scanner process
         self.rescanning = True
         self.close_shares(self.share_dbs)
 
+        shared_folders = self.get_shared_folders()
         scanner, scanner_queue = self.build_scanner_process(shared_folders, init, rescan, rebuild)
         scanner.start()
 
