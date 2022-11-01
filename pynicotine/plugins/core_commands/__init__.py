@@ -56,7 +56,6 @@ class Plugin(BasePlugin):
                 "usage": ["[-force]", ""],  # "" disallow extra args
                 "aliases": ["q", "exit"]
             },
-
             "add": {
                 "callback": self.add_buddy_command,
                 "description": _("Add user to buddy list"),
@@ -83,26 +82,24 @@ class Plugin(BasePlugin):
                 "usage": ["<user>"],
                 "group": _("Users")
             },
-            "block": {  # new untested
+            "block": {  # new
                 "callback": self.block_user_ip_command,
                 "description": _("Stop all connections from same IP as user"),
                 "usage": ["<user>"],
-                "group": _("Users")
+                "group": _("Network Filters")
             },
-            "unblock": {  # new untested
+            "unblock": {  # new
                 "callback": self.unblock_user_ip_command,
                 "description": _("Remove user's IP address from block list"),
                 "usage": ["<user>"],
-                "group": _("Users")
+                "group": _("Network Filters")
             },
-
             "ip": {
                 "callback": self.ip_user_command,
                 "description": _("Show IP address of user"),
                 "usage": ["<user>"],
                 "group": _("Network Filters")
-            },
-
+            }
         }
 
         chat_commands = {
@@ -150,7 +147,6 @@ class Plugin(BasePlugin):
                 "description": _("Ask for a user's client version"),
                 "usage": ["[user]"],
             },
-
             "ignore": {
                 "callback": self.ignore_user_command,
                 "description": _("Silence chat messages from user"),
@@ -159,7 +155,7 @@ class Plugin(BasePlugin):
             },
             "unignore": {
                 "callback": self.unignore_user_command,
-                "description": _("Remove user from ignore list"),
+                "description": _("Remove user from chat ignore list"),
                 "usage": ["<user>"],
                 "group": _("Users")
             },
@@ -167,33 +163,31 @@ class Plugin(BasePlugin):
                 "callback": self.ignore_user_ip_command,
                 "description": _("Silence chat messages from IP address of user"),
                 "usage": ["<user>"],
-                "group": _("Users")
+                "group": _("Network Filters")
             },
             "unignoreip": {  # new
                 "callback": self.unignore_user_ip_command,
                 "description": _("Remove user's IP address from chat ignore list"),
                 "usage": ["<user>"],
-                "group": _("Users")
+                "group": _("Network Filters")
             },
-
-            "ipignore": {  # new untested
+            "ipignore": {  # new
                 "callback": self.ignore_ip_command,
                 "description": _("Silence chat from anyone at IP address"),
                 "usage": ["<ip_address>"],
                 "group": _("Network Filters")
             },
-            "ipunignore": {  # new untested
+            "ipunignore": {  # new
                 "callback": self.unignore_ip_command,
                 "description": _("Remove IP address from chat ignore list"),
                 "usage": ["<ip_address>"],
                 "group": _("Network Filters")
             },
-
             "whois": {
                 "callback": self.whois_user_command,
                 "description": _("Show info about user"),
                 "usage": ["<user>"],
-                "aliases": ["info"],  # new
+                "aliases": ["info"],
                 "group": _("Users")
             },
             "browse": {
@@ -202,8 +196,7 @@ class Plugin(BasePlugin):
                 "usage": ["<user>"],
                 "aliases": ["b"],
                 "group": _("Users")
-            },
-
+            }
         }
 
         chatroom_commands = {
@@ -220,8 +213,7 @@ class Plugin(BasePlugin):
                 "usage": ["[room]"],
                 "aliases": ["l"],
                 "group": _("Chat Rooms")
-            },
-
+            }
         }
 
         private_chat_commands = {
@@ -239,7 +231,6 @@ class Plugin(BasePlugin):
                 "aliases": ["l"],
                 "group": _("Chat Rooms")
             },
-
             "add": {
                 "callback": self.add_buddy_command,
                 "description": _("Add user to buddy list"),
@@ -268,17 +259,15 @@ class Plugin(BasePlugin):
             },
             "block": {  # new
                 "callback": self.block_user_ip_command,
-                "description": _("Stop connections to IP of user"),
+                "description": _("Stop all connections from same IP as user"),
                 "usage": ["[user]"],
-                "aliases": ["banip"],  # new
-                "group": _("Users")
+                "group": _("Network Filters")
             },
             "unblock": {  # new
                 "callback": self.unblock_user_ip_command,
-                "description": _("Remove user from IP block list"),
+                "description": _("Remove user's IP address from block list"),
                 "usage": ["[user]"],
-                "aliases": ["unbanip"],  # new
-                "group": _("Users")
+                "group": _("Network Filters")
             },
             "ignore": {
                 "callback": self.ignore_user_command,
@@ -288,7 +277,7 @@ class Plugin(BasePlugin):
             },
             "unignore": {
                 "callback": self.unignore_user_command,
-                "description": _("Remove user from ignore list"),
+                "description": _("Remove user from chat ignore list"),
                 "usage": ["[user]"],
                 "group": _("Users")
             },
@@ -296,27 +285,25 @@ class Plugin(BasePlugin):
                 "callback": self.ignore_user_ip_command,
                 "description": _("Silence chat messages from IP address of user"),
                 "usage": ["[user]"],
-                "group": _("Users")
+                "group": _("Network Filters")
             },
             "unignoreip": {  # new
                 "callback": self.unignore_user_ip_command,
                 "description": _("Remove user's IP address from chat ignore list"),
                 "usage": ["[user]"],
-                "group": _("Users")
+                "group": _("Network Filters")
             },
-
             "ip": {
                 "callback": self.ip_user_command,
                 "description": _("Show IP address of user"),
                 "usage": ["[user]"],
                 "group": _("Network Filters")
             },
-
             "whois": {
                 "callback": self.whois_user_command,
                 "description": _("Show info about user"),
                 "usage": ["[user]"],
-                "aliases": ["info"],  # new
+                "aliases": ["info"],
                 "group": _("Users")
             },
             "browse": {
@@ -325,8 +312,7 @@ class Plugin(BasePlugin):
                 "usage": ["[user]"],
                 "aliases": ["b"],
                 "group": _("Users")
-            },
-
+            }
         }
 
         cli_commands = {
@@ -385,6 +371,10 @@ class Plugin(BasePlugin):
             if usage:
                 command_message += " " + usage
 
+            if interface == "cli":
+                # Improved layout for fixed width output
+                command_message = command_message.ljust(24)
+
             description = data.get("description", "No description")
             group = data.get("group", f"{self.config.application_name} {_('Commands')}")
 
@@ -424,6 +414,8 @@ class Plugin(BasePlugin):
         self.echo_message(output)
         return None
 
+    """ "Chats" """
+
     def clear_command(self, _args, user=None, room=None):
 
         if room is not None:
@@ -459,7 +451,7 @@ class Plugin(BasePlugin):
         return False
 
     def hello_command(self, args, **_unused):
-        return "Hello there! %s" % args
+        self.echo_message("Hello there! %s" % args)
 
     def join_chat_command(self, args, **_unused):
         self.core.chatrooms.show_room(args)
@@ -522,7 +514,8 @@ class Plugin(BasePlugin):
         self.echo_message(f"nothing here yet, you entered: group='{group}' name='{name}'")
 
     def list_shares_command(self, _args):
-        self.echo_message(self.core.shares.list_shares())
+        # TODO: self.echo_message(self.core.shares.list_shares())
+        self.echo_message("nothing here yet")
 
     def rescan_command(self, args, **_unused):
 
@@ -530,14 +523,13 @@ class Plugin(BasePlugin):
 
         self.core.shares.rescan_shares(force=force)
 
-    """ "User" """
+    """ "Users" """
 
     def add_buddy_command(self, args, user=None, **_unused):
 
         if args:
             user = args
 
-        # TODO: None of the user commands return anything
         return self.core.userlist.add_user(user)
 
     def remove_buddy_command(self, args, user=None, **_unused):
@@ -608,8 +600,6 @@ class Plugin(BasePlugin):
         if args:
             user = args
 
-        # Echoing the IP will be difficult because it waits for a server response message
-        # could we use a user_resolve_notification() or similar?
         return self.core.request_ip_address(user)
 
     def ignore_ip_command(self, args, **_unused):

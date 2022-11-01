@@ -24,8 +24,6 @@
 
 import time
 
-from threading import Thread
-
 import gi
 from gi.repository import Gio
 from gi.repository import GLib
@@ -68,9 +66,7 @@ from pynicotine.gtkgui.widgets.window import Window
 from pynicotine.logfacility import log
 from pynicotine.scheduler import scheduler
 from pynicotine.slskmessages import UserStatus
-from pynicotine.utils import get_latest_version
 from pynicotine.utils import human_speed
-from pynicotine.utils import make_version
 from pynicotine.utils import open_file_path
 from pynicotine.utils import open_log
 from pynicotine.utils import open_uri
@@ -85,7 +81,6 @@ class NicotineFrame(Window):
         self.start_hidden = start_hidden
         self.ci_mode = ci_mode
         self.current_page_id = ""
-        self.update_checker = None
         self.auto_away = False
         self.away_timer_id = None
         self.away_cooldown_time = 0
@@ -710,75 +705,8 @@ class NicotineFrame(Window):
     def on_improve_translations(*_args):
         open_uri(config.translations_url)
 
-    """ Dialogs """
-
-    def confirm_force_rescan_response(self, _dialog, response_id, _data):
-
-        if response_id == 1:  # 'Retry'
-            self.core.shares.rescan_shares()
-
-        elif response_id == 2:  # 'Force Rescan'
-            self.core.shares.rescan_shares(force=True)
-
-        elif response_id == 4:  # 'Configure Shares' or 'Setup Assistant'
-            if config.need_config():
-                self.on_fast_configure()
-            else:
-                self.on_configure_shares()
-
-    def confirm_force_rescan(self, title, message, show_retry, show_force):
-
-        def create_dialog():
-            OptionDialog(
-                parent=self.window,
-                title=title,
-                message=message,
-                first_button=_("_Retry") if show_retry else None,  # hide if 0 shares configured
-                second_button=_("_Force Rescan") if show_force else None,  # hide if 0 shares ready
-                third_button=_("_Ignore") if not show_force else None,  # don't offer to completely wipe out the index
-                fourth_button=_("_Configure Shares") if not config.need_config() else _("_Setup Assistant"),
-                callback=self.confirm_force_rescan_response
-            ).show()
-
-        # Avoid dialog appearing deactive if invoked during rescan on startup
-        GLib.idle_add(create_dialog)
-
-    def _on_check_latest_version(self):
-
-        def create_dialog(title, message):
-            MessageDialog(parent=self.window, title=title, message=message).show()
-
-        try:
-            hlatest, latest, date = get_latest_version()
-            myversion = int(make_version(config.version))
-
-        except Exception as error:
-            GLib.idle_add(create_dialog, _("Error retrieving latest version"), str(error))
-            return
-
-        if latest > myversion:
-            version_label = _("Version %s is available") % hlatest
-
-            if date:
-                version_label += ", " + _("released on %s") % date
-
-            GLib.idle_add(create_dialog, _("Out of date"), version_label)
-            return
-
-        if myversion > latest:
-            GLib.idle_add(create_dialog, _("Up to date"),
-                          _("You appear to be using a development version of Nicotine+."))
-            return
-
-        GLib.idle_add(create_dialog, _("Up to date"), _("You are using the latest version of Nicotine+."))
-
     def on_check_latest_version(self, *_args):
-
-        if self.update_checker and self.update_checker.is_alive():
-            return
-
-        self.update_checker = Thread(target=self._on_check_latest_version, name="UpdateChecker", daemon=True)
-        self.update_checker.start()
+        self.core.update_checker.check()
 
     def on_about(self, *_args):
         About(self).show()
@@ -1501,13 +1429,43 @@ class NicotineFrame(Window):
     def on_get_user_info(self, *_args):
         self.userinfo.on_get_user_info()
 
-    """ Browse Shares """
+    """ Shares """
 
     def on_get_shares(self, *_args):
         self.userbrowse.on_get_shares()
 
     def on_load_from_disk(self, *_args):
         self.userbrowse.on_load_from_disk()
+
+    def shares_unavailable_response(self, _dialog, response_id, _data):
+
+        if response_id == 2:  # 'Retry'
+            self.core.shares.rescan_shares()
+
+        elif response_id == 3:  # 'Force Rescan'
+            self.core.shares.rescan_shares(force=True)
+
+    def shares_unavailable(self, shares):
+
+        shares_list_message = ""
+
+        for virtual_name, folder_path in shares:
+            shares_list_message += "• \"%s\" %s\n" % (virtual_name, folder_path)
+
+        def create_dialog():
+            OptionDialog(
+                parent=self.window,
+                title=_("Shares Not Available"),
+                message=_("Verify that external disks are mounted and folder permissions are correct."),
+                long_message=shares_list_message,
+                first_button=_("_Cancel"),
+                second_button=_("_Retry"),
+                third_button=_("_Force Rescan"),
+                callback=self.shares_unavailable_response
+            ).show()
+
+        # Avoid dialog appearing deactive if invoked during rescan on startup
+        GLib.idle_add(create_dialog)
 
     """ Chat """
 
@@ -1522,7 +1480,7 @@ class NicotineFrame(Window):
 
     def update_completions(self):
         self.core.chatrooms.update_completions()
-        self.core.privatechats.update_completions()
+        self.core.privatechat.update_completions()
 
     """ Away Mode """
 
@@ -1630,15 +1588,14 @@ class NicotineFrame(Window):
             ("#" + _("Clear Log View"), self.on_clear_log_view)
         )
 
-    def log_callback(self, timestamp_format, msg, level):
-        GLib.idle_add(self.update_log, timestamp_format, msg, level, priority=GLib.PRIORITY_LOW)
+    def log_callback(self, timestamp_format, msg, title, level):
+        GLib.idle_add(self.update_log, timestamp_format, msg, title, level, priority=GLib.PRIORITY_LOW)
 
-    def update_log(self, timestamp_format, msg, level):
+    def update_log(self, timestamp_format, msg, title, level):
 
-        if level and level.startswith("important"):
+        if title:
             parent = self.window
             active_dialog = Dialog.active_dialog
-            title = "Information" if level == "important_info" else "Error"
 
             if active_dialog is not None:
                 parent = active_dialog.dialog
