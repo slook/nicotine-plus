@@ -149,8 +149,8 @@ class Application:
         pass
 
     def confirm_quit(self, _remember):
-        # Not implemented
-        pass
+        log.add(_('Quit Nicotine+'))
+        self.core.quit()
 
     def quit(self):
         # Not implemented
