@@ -22,7 +22,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import threading
 import time
 
 import gi
@@ -65,10 +64,9 @@ from pynicotine.gtkgui.widgets.trayicon import TrayIcon
 from pynicotine.gtkgui.widgets.ui import UserInterface
 from pynicotine.gtkgui.widgets.window import Window
 from pynicotine.logfacility import log
+from pynicotine.scheduler import scheduler
 from pynicotine.slskmessages import UserStatus
-from pynicotine.utils import get_latest_version
 from pynicotine.utils import human_speed
-from pynicotine.utils import make_version
 from pynicotine.utils import open_file_path
 from pynicotine.utils import open_log
 from pynicotine.utils import open_uri
@@ -83,9 +81,8 @@ class NicotineFrame(Window):
         self.start_hidden = start_hidden
         self.ci_mode = ci_mode
         self.current_page_id = ""
-        self.checking_update = False
         self.auto_away = False
-        self.away_timer = None
+        self.away_timer_id = None
         self.away_cooldown_time = 0
         self.gesture_click = None
         self.scan_progress_indeterminate = False
@@ -497,9 +494,8 @@ class NicotineFrame(Window):
         self.disconnect_action.set_enabled(is_online)
         self.soulseek_privileges_action.set_enabled(is_online)
         self.away_accelerator_action.set_enabled(is_online)
-        self.away_action.set_enabled(is_online)
-        self.away_action.set_state(GLib.Variant("b", is_away))
 
+        self.user_status_button.set_sensitive(is_online)
         self.tray_icon.update_user_status()
 
         # Away mode
@@ -709,46 +705,8 @@ class NicotineFrame(Window):
     def on_improve_translations(*_args):
         open_uri(config.translations_url)
 
-    def _on_check_latest_version(self):
-
-        def create_dialog(title, message):
-            MessageDialog(parent=self.window, title=title, message=message).show()
-
-        try:
-            hlatest, latest, date = get_latest_version()
-            myversion = int(make_version(config.version))
-
-        except Exception as error:
-            GLib.idle_add(create_dialog, _("Error retrieving latest version"), str(error))
-            self.checking_update = False
-            return
-
-        if latest > myversion:
-            version_label = _("Version %s is available") % hlatest
-
-            if date:
-                version_label += ", " + _("released on %s") % date
-
-            GLib.idle_add(create_dialog, _("Out of date"), version_label)
-
-        elif myversion > latest:
-            GLib.idle_add(create_dialog, _("Up to date"),
-                          _("You appear to be using a development version of Nicotine+."))
-
-        else:
-            GLib.idle_add(create_dialog, _("Up to date"), _("You are using the latest version of Nicotine+."))
-
-        self.checking_update = False
-
     def on_check_latest_version(self, *_args):
-
-        if not self.checking_update:
-            thread = threading.Thread(target=self._on_check_latest_version)
-            thread.name = "UpdateChecker"
-            thread.daemon = True
-            thread.start()
-
-            self.checking_update = True
+        self.core.update_checker.check()
 
     def on_about(self, *_args):
         About(self).show()
@@ -785,18 +743,10 @@ class NicotineFrame(Window):
         self.soulseek_privileges_action.connect("activate", self.on_soulseek_privileges)
         self.application.add_action(self.soulseek_privileges_action)
 
-        action = Gio.SimpleAction(name="fast-configure")
-        action.connect("activate", self.on_fast_configure)
-        self.application.add_action(action)
-
         action = Gio.SimpleAction(name="preferences")
         action.connect("activate", self.on_preferences)
         self.application.add_action(action)
         self.application.set_accels_for_action("app.preferences", ["<Primary>comma", "<Primary>p"])
-
-        action = Gio.SimpleAction(name="quit")  # Menu 'Quit' always Quits
-        action.connect("activate", self.on_quit)
-        self.application.add_action(action)
 
         # View
 
@@ -830,22 +780,10 @@ class NicotineFrame(Window):
 
         # Shares
 
-        action = Gio.SimpleAction(name="configure-shares")
-        action.connect("activate", self.on_configure_shares)
-        self.application.add_action(action)
-
         action = Gio.SimpleAction(name="rescan-shares")
         action.connect("activate", self.on_rescan_shares)
         self.application.add_action(action)
         self.application.set_accels_for_action("app.rescan-shares", ["<Shift><Primary>r"])
-
-        action = Gio.SimpleAction(name="browse-public-shares")
-        action.connect("activate", self.on_browse_public_shares)
-        self.application.add_action(action)
-
-        action = Gio.SimpleAction(name="browse-buddy-shares")
-        action.connect("activate", self.on_browse_buddy_shares)
-        self.application.add_action(action)
 
         # Help
 
@@ -853,26 +791,6 @@ class NicotineFrame(Window):
         action.connect("activate", self.on_keyboard_shortcuts)
         self.application.add_action(action)
         self.application.set_accels_for_action("app.keyboard-shortcuts", ["<Primary>question", "F1"])
-
-        action = Gio.SimpleAction(name="transfer-statistics")
-        action.connect("activate", self.on_transfer_statistics)
-        self.application.add_action(action)
-
-        action = Gio.SimpleAction(name="report-bug")
-        action.connect("activate", self.on_report_bug)
-        self.application.add_action(action)
-
-        action = Gio.SimpleAction(name="improve-translations")
-        action.connect("activate", self.on_improve_translations)
-        self.application.add_action(action)
-
-        action = Gio.SimpleAction(name="check-latest-version")
-        action.connect("activate", self.on_check_latest_version)
-        self.application.add_action(action)
-
-        action = Gio.SimpleAction(name="about")
-        action.connect("activate", self.on_about)
-        self.application.add_action(action)
 
         # Search
 
@@ -960,18 +878,13 @@ class NicotineFrame(Window):
         self.application.add_action(self.alt_speed_action)
         self.update_alternative_speed_icon(state)
 
-        state = config.sections["server"]["away"]
-        self.away_action = Gio.SimpleAction(name="away", state=GLib.Variant("b", state), enabled=False)
-        self.away_action.connect("change-state", self.on_away)
-        self.application.add_action(self.away_action)
-
         # Shortcut Key Actions
 
-        self.away_accelerator_action = Gio.SimpleAction(name="away-accelerator", enabled=False)
+        self.away_accelerator_action = Gio.SimpleAction(name="away", enabled=False)
         self.away_accelerator_action.cooldown_time = 0  # needed to prevent server ban
         self.away_accelerator_action.connect("activate", self.on_away_accelerator)
         self.application.add_action(self.away_accelerator_action)
-        self.application.set_accels_for_action("app.away-accelerator", ["<Primary>h"])
+        self.application.set_accels_for_action("app.away", ["<Primary>h"])
 
         action = Gio.SimpleAction(name="close")  # 'When closing Nicotine+'
         action.connect("activate", self.on_close_request)
@@ -999,14 +912,13 @@ class NicotineFrame(Window):
     def add_preferences_item(menu):
         menu.add_items(("#" + _("_Preferences"), "app.preferences"))
 
-    @staticmethod
-    def add_quit_item(menu):
+    def add_quit_item(self, menu):
 
         label = _("_Quit…") if config.sections["ui"]["exitdialog"] else _("_Quit")
 
         menu.add_items(
             ("", None),
-            ("#" + label, "app.quit")
+            ("#" + label, self.on_quit)
         )
 
     def create_file_menu(self):
@@ -1033,21 +945,19 @@ class NicotineFrame(Window):
 
         return menu
 
-    @staticmethod
-    def add_configure_shares_section(menu):
+    def add_configure_shares_section(self, menu):
 
         menu.add_items(
             ("#" + _("_Rescan Shares"), "app.rescan-shares"),
-            ("#" + _("_Configure Shares"), "app.configure-shares"),
+            ("#" + _("_Configure Shares"), self.on_configure_shares),
             ("", None)
         )
 
-    @staticmethod
-    def add_browse_shares_section(menu):
+    def add_browse_shares_section(self, menu):
 
         menu.add_items(
-            ("#" + _("_Browse Public Shares"), "app.browse-public-shares"),
-            ("#" + _("Bro_wse Buddy Shares"), "app.browse-buddy-shares"),
+            ("#" + _("_Browse Public Shares"), self.on_browse_public_shares),
+            ("#" + _("Bro_wse Buddy Shares"), self.on_browse_buddy_shares),
             ("", None)
         )
 
@@ -1064,14 +974,14 @@ class NicotineFrame(Window):
         menu = PopupMenu(self)
         menu.add_items(
             ("#" + _("_Keyboard Shortcuts"), "app.keyboard-shortcuts"),
-            ("#" + _("_Setup Assistant"), "app.fast-configure"),
-            ("#" + _("_Transfer Statistics"), "app.transfer-statistics"),
+            ("#" + _("_Setup Assistant"), self.on_fast_configure),
+            ("#" + _("_Transfer Statistics"), self.on_transfer_statistics),
             ("", None),
-            ("#" + _("Report a _Bug"), "app.report-bug"),
-            ("#" + _("Improve T_ranslations"), "app.improve-translations"),
-            ("#" + _("Check _Latest Version"), "app.check-latest-version"),
+            ("#" + _("Report a _Bug"), self.on_report_bug),
+            ("#" + _("Improve T_ranslations"), self.on_improve_translations),
+            ("#" + _("Check _Latest Version"), self.on_check_latest_version),
             ("", None),
-            ("#" + _("_About Nicotine+"), "app.about")
+            ("#" + _("_About Nicotine+"), self.on_about)
         )
 
         return menu
@@ -1519,13 +1429,43 @@ class NicotineFrame(Window):
     def on_get_user_info(self, *_args):
         self.userinfo.on_get_user_info()
 
-    """ Browse Shares """
+    """ Shares """
 
     def on_get_shares(self, *_args):
         self.userbrowse.on_get_shares()
 
     def on_load_from_disk(self, *_args):
         self.userbrowse.on_load_from_disk()
+
+    def shares_unavailable_response(self, _dialog, response_id, _data):
+
+        if response_id == 2:  # 'Retry'
+            self.core.shares.rescan_shares()
+
+        elif response_id == 3:  # 'Force Rescan'
+            self.core.shares.rescan_shares(force=True)
+
+    def shares_unavailable(self, shares):
+
+        shares_list_message = ""
+
+        for virtual_name, folder_path in shares:
+            shares_list_message += "• \"%s\" %s\n" % (virtual_name, folder_path)
+
+        def create_dialog():
+            OptionDialog(
+                parent=self.window,
+                title=_("Shares Not Available"),
+                message=_("Verify that external disks are mounted and folder permissions are correct."),
+                long_message=shares_list_message,
+                first_button=_("_Cancel"),
+                second_button=_("_Retry"),
+                third_button=_("_Force Rescan"),
+                callback=self.shares_unavailable_response
+            ).show()
+
+        # Avoid dialog appearing deactive if invoked during rescan on startup
+        GLib.idle_add(create_dialog)
 
     """ Chat """
 
@@ -1540,18 +1480,18 @@ class NicotineFrame(Window):
 
     def update_completions(self):
         self.core.chatrooms.update_completions()
-        self.core.privatechats.update_completions()
+        self.core.privatechat.update_completions()
 
     """ Away Mode """
 
     def set_away_mode(self, _is_away):
         self.update_user_status()
 
-    def set_auto_away(self, active):
+    def set_auto_away(self, active=True):
 
         if active:
             self.auto_away = True
-            self.away_timer = None
+            self.away_timer_id = None
 
             if self.core.user_status != UserStatus.AWAY:
                 self.core.set_away_mode(True)
@@ -1576,13 +1516,10 @@ class NicotineFrame(Window):
         away_interval = config.sections["server"]["autoaway"]
 
         if away_interval > 0:
-            self.away_timer = GLib.timeout_add_seconds(60 * away_interval, self.set_auto_away, True)
+            self.away_timer_id = scheduler.add(delay=(60 * away_interval), callback=self.set_auto_away)
 
     def remove_away_timer(self):
-
-        if self.away_timer is not None:
-            GLib.source_remove(self.away_timer)
-            self.away_timer = None
+        scheduler.cancel(self.away_timer_id)
 
     def on_cancel_auto_away(self, *_args):
 
@@ -1648,18 +1585,17 @@ class NicotineFrame(Window):
             ("", None),
             (">" + _("_Log Categories"), popup_menu_log_categories),
             ("", None),
-            ("#" + _("Clear Log View"), self.log_view.on_clear_all_text)
+            ("#" + _("Clear Log View"), self.on_clear_log_view)
         )
 
-    def log_callback(self, timestamp_format, msg, level):
-        GLib.idle_add(self.update_log, timestamp_format, msg, level, priority=GLib.PRIORITY_LOW)
+    def log_callback(self, timestamp_format, msg, title, level):
+        GLib.idle_add(self.update_log, timestamp_format, msg, title, level, priority=GLib.PRIORITY_LOW)
 
-    def update_log(self, timestamp_format, msg, level):
+    def update_log(self, timestamp_format, msg, title, level):
 
-        if level and level.startswith("important"):
+        if title:
             parent = self.window
             active_dialog = Dialog.active_dialog
-            title = "Information" if level == "important_info" else "Error"
 
             if active_dialog is not None:
                 parent = active_dialog.dialog
@@ -1685,6 +1621,10 @@ class NicotineFrame(Window):
     @staticmethod
     def on_view_transfer_log(*_args):
         open_log(config.sections["logging"]["transferslogsdir"], "transfers")
+
+    def on_clear_log_view(self, *_args):
+        self.log_view.on_clear_all_text()
+        self.set_status_text("")
 
     @staticmethod
     def add_debug_level(debug_level):

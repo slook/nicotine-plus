@@ -31,6 +31,7 @@ server messages and p2p messages (between clients). """
 
 
 UINT_LIMIT = 4294967295
+UINT64_LIMIT = 18446744073709551615
 
 INT_UNPACK = struct.Struct("<i").unpack
 UINT_UNPACK = struct.Struct("<I").unpack
@@ -208,6 +209,18 @@ class CheckDownloadQueue(InternalMessage):
 class CheckUploadQueue(InternalMessage):
     """ Sent from a timer to the main thread to indicate that the upload queue
     should be checked. """
+
+
+class RetryDownloadLimits(InternalMessage):
+    pass
+
+
+class RetryFailedUploads(InternalMessage):
+    pass
+
+
+class SaveTransfers(InternalMessage):
+    pass
 
 
 class DownloadFile(InternalMessage):
@@ -2336,7 +2349,7 @@ class SharedFileList(PeerMessage):
                     msg_list.extend(self.pack_uint32(len(list(self.list))))
 
                 for key in self.list:
-                    msg_list.extend(self.pack_string(key.replace('/', '\\')))
+                    msg_list.extend(self.pack_string(key))
                     msg_list.extend(self.list[key])
 
             except Exception as error:
@@ -2449,7 +2462,7 @@ class FileSearchResult(PeerMessage):
     def pack_file_info(self, fileinfo):
         msg = bytearray()
         msg.extend(self.pack_uint8(1))
-        msg.extend(self.pack_string(fileinfo[0].replace('/', '\\')))
+        msg.extend(self.pack_string(fileinfo[0]))
         msg.extend(self.pack_uint64(fileinfo[1]))
 
         if fileinfo[2] is None or fileinfo[3] is None:

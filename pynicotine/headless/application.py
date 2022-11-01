@@ -101,6 +101,10 @@ class Application:
     def on_critical_error_threading(args):
         raise args.exc_value
 
+    def shares_unavailable(self, shares):
+        for virtual_name, folder_path in shares:
+            log.add("• \"%s\" %s" % (virtual_name, folder_path))
+
     def show_scan_progress(self):
         # Not implemented
         pass
@@ -146,5 +150,5 @@ class Application:
         self.core.quit()
 
     def quit(self):
-        # Not needed
+        # Not implemented
         pass
