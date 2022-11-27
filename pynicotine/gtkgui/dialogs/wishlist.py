@@ -43,7 +43,7 @@ class WishList(Dialog):
         ) = ui_template.widgets
 
         super().__init__(
-            parent=frame.window,
+            parent=application.window,
             modal=False,
             content_box=self.container,
             show_callback=self.on_show,
@@ -53,8 +53,9 @@ class WishList(Dialog):
             close_destroy=False
         )
 
+        self.application = application
         self.list_view = TreeView(
-            frame, parent=self.list_container, multi_select=True, activate_row_callback=self.on_edit_wish,
+            application.window, parent=self.list_container, multi_select=True, activate_row_callback=self.on_edit_wish,
             columns=[
                 {"column_id": "wish", "column_type": "text", "title": _("Wish"), "sort_column": 0,
                  "default_sort_column": "ascending"}
@@ -174,7 +175,7 @@ class WishList(Dialog):
 
     def update_wish_button(self, wish):
 
-        for page in self.searches.pages.values():
+        for page in self.application.window.search.pages.values():
             if page.text == wish:
                 page.update_wish_button()
 
@@ -185,14 +186,14 @@ class WishList(Dialog):
 
     def on_show(self, *_args):
 
-        page = self.searches.get_current_page()
+        page = self.application.window.search.get_current_page()
 
         if page is None:
             return
 
         text = None
 
-        for tab in self.searches.pages.values():
+        for tab in self.application.window.search.pages.values():
             if tab is not None and tab.container == page:
                 text = tab.text
                 break

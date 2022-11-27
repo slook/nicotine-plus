@@ -22,6 +22,7 @@ This module implements Soulseek networking protocol.
 """
 
 import copy
+import errno
 import selectors
 import socket
 import struct
@@ -188,6 +189,7 @@ class SoulseekNetworkThread(Thread):
 
     IN_PROGRESS_STALE_AFTER = 2
     CONNECTION_MAX_IDLE = 60
+    CONNECTION_BACKLOG_LENGTH = 4096
     SOCKET_READ_BUFFER_SIZE = 1048576
     SOCKET_WRITE_BUFFER_SIZE = 1048576
 
@@ -303,7 +305,7 @@ class SoulseekNetworkThread(Thread):
         for listenport in range(int(self._listen_port_range[0]), int(self._listen_port_range[1]) + 1):
             try:
                 self._listen_socket.bind((ip_address, listenport))
-                self._listen_socket.listen()
+                self._listen_socket.listen(self.CONNECTION_BACKLOG_LENGTH)
                 self.listenport = listenport
                 log.add(_("Listening on port: %i"), listenport)
                 log.add_debug("Maximum number of concurrent connections (sockets): %i", MAXSOCKETS)
@@ -2160,21 +2162,30 @@ class SoulseekNetworkThread(Thread):
 
             # Manage incoming connections to listen socket
             if self._numsockets < MAXSOCKETS and self._process_queue and self._listen_socket in input_list:
-                try:
-                    incsock, incaddr = self._listen_socket.accept()
-                except Exception:
-                    time.sleep(0.01)
-                else:
-                    selector_events = selectors.EVENT_READ
-                    incsock.setblocking(False)
+                while True:
+                    try:
+                        incoming_sock, incoming_addr = self._listen_socket.accept()
 
-                    self._conns[incsock] = PeerConnection(sock=incsock, addr=incaddr, selector_events=selector_events)
+                    except OSError as error:
+                        if error.errno == errno.EAGAIN:
+                            # No more incoming connections
+                            break
+
+                        log.add_conn("Incoming connection failed: %s", error)
+                        break
+
+                    selector_events = selectors.EVENT_READ
+                    incoming_sock.setblocking(False)
+
+                    self._conns[incoming_sock] = PeerConnection(
+                        sock=incoming_sock, addr=incoming_addr, selector_events=selector_events
+                    )
                     self._numsockets += 1
-                    log.add_conn("Incoming connection from %s", str(incaddr))
+                    log.add_conn("Incoming connection from %s", str(incoming_addr))
 
                     # Event flags are modified to include 'write' in subsequent loops, if necessary.
                     # Don't do it here, otherwise connections may break.
-                    self._selector.register(incsock, selector_events)
+                    self._selector.register(incoming_sock, selector_events)
 
             # Manage outgoing connections in progress
             for sock_in_progress, conn_obj in self._connsinprogress.copy().items():

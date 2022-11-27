@@ -208,7 +208,6 @@ class Plugin(BasePlugin):
                 "callback": self.ignore_user_ip_command,
                 "description": _("Silence chat messages from IP address of user"),
                 "disable": ["cli"],
-                "usage": ["[user]"],
                 "group": _("Network Filters"),
                 "usage_chatroom": ["<user>"],
                 "usage_private_chat": ["[user]"]

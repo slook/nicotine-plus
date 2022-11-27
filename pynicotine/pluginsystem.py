@@ -177,7 +177,7 @@ class BasePlugin:
     def send_public(self, room, text):
         """ Send a public message to the specified chat room """
 
-        if room not in self.core.chatrooms.joined_rooms:
+        if room not in core.chatrooms.joined_rooms:
             self.echo_message("Not joined in room %s" % room)
             return False
 
@@ -723,21 +723,14 @@ class PluginHandler:
             if room is not None:
                 self.command_source = ("chatroom", room)
                 legacy_commands = plugin.__publiccommands__
-                prefix = "/"
 
             elif user is not None:
                 self.command_source = ("private_chat", user)
                 legacy_commands = plugin.__privatecommands__
-                prefix = "/"
 
             else:
                 self.command_source = ("cli", None)
                 legacy_commands = []
-                prefix = ""
-
-            if prefix:
-                # Input command line echo is needed in chat view
-                plugin.echo_message(f"{prefix}{command} {args}")
 
             try:
                 for trigger, data in plugin.commands.items():
@@ -751,6 +744,10 @@ class PluginHandler:
 
                     if command_type in disabled_interfaces:
                         continue
+
+                    if user or room:
+                        # Input command line echo is needed in chat view
+                        plugin.echo_message(f"/{command} {args}")
 
                     command_found = True
                     rejection_message = None
@@ -801,6 +798,7 @@ class PluginHandler:
                         return_value = getattr(plugin, callback_name)(args)
 
                     if return_value is None:
+                        # Nothing is okay
                         return_value = True
 
                 if not command_found:

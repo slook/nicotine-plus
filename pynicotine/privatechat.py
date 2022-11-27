@@ -43,6 +43,7 @@ class PrivateChat:
         for event_name, callback in (
             ("message-user", self._message_user),
             ("peer-address", self._get_peer_address),
+            ("quit", self._quit),
             ("server-login", self._server_login),
             ("server-disconnect", self._server_disconnect),
             ("start", self._start),
@@ -60,6 +61,10 @@ class PrivateChat:
                 self.show_user(user, switch_page=False)
 
         self.update_completions()
+
+    def _quit(self):
+        self.completion_list.clear()
+        self.users.clear()
 
     def _server_login(self, msg):
 
@@ -94,7 +99,7 @@ class PrivateChat:
         if user in config.sections["privatechat"]["users"]:
             config.sections["privatechat"]["users"].remove(user)
 
-        self.users.discard(user)
+        self.users.remove(user)
         events.emit("private-chat-remove-user", user)
 
     def show_user(self, user, switch_page=True):
@@ -156,15 +161,10 @@ class PrivateChat:
         else:
             message = ui_message = self.auto_replace(message)
 
-        if message == "":
-            return False
-
         core.queue.append(slskmessages.MessageUser(user, message))
         core.pluginhandler.outgoing_private_chat_notification(user, message)
 
         events.emit("send-private-message", user, ui_message)
-
-        return True
 
     def _get_peer_address(self, msg):
         """ Server code: 3 """

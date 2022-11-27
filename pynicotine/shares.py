@@ -615,30 +615,6 @@ class Shares:
 
         return new_virtual_name
 
-    @staticmethod
-    def get_group_index(group="normal"):
-        """ Address the index of a shares table by "name" or alias """
-
-        if group in (0, "normal", "public", "everyone"):
-            return 0
-
-        if group in (1, "buddy", "private", "trusted"):
-            return 1
-
-        return -1
-
-    @staticmethod
-    def get_group_name(group=0):
-        """ Identify the name of a specific shares table by [index] """
-
-        if group in (0, "normal", "public", "everyone"):
-            return "public"  # "normal" is not UI friendly
-
-        if group in (1, "buddy", "private", "trusted"):
-            return "buddy"
-
-        return "__INTERNAL_ERROR__"
-
     def convert_shares(self):
         """ Convert fs-based shared to virtual shared (pre 1.4.0) """
 
@@ -889,7 +865,7 @@ class Shares:
                 log.add(_("Rescan aborted due to unavailable shares"))
                 rescan = False
 
-                events.emit("shares_unavailable", unavailable_shares)
+                events.emit("shares-unavailable", unavailable_shares)
 
                 if not init:
                     return None
