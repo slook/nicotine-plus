@@ -23,40 +23,40 @@ import time
 from collections import deque
 
 from pynicotine.config import config
+from pynicotine.core import core
+from pynicotine.events import events
 from pynicotine.logfacility import log
 
 
 class Application:
 
-    def __init__(self, core, ci_mode):
+    def __init__(self):
 
         self.init_exception_handler()
 
-        self.core = core
-        self.ci_mode = ci_mode
-        self.network_msgs = deque()
-
-        config.load_config()
+        self.thread_messages = deque()
         log.log_levels = set(["download", "upload"] + config.sections["logging"]["debugmodes"])
+
+        for event_name, callback in (
+            ("shares-unavailable", self.shares_unavailable),
+            ("thread-callback", self.thread_callback)
+        ):
+            events.connect(event_name, callback)
 
     def run(self):
 
-        self.core.start(self, self.network_callback)
-        connect_success = self.core.connect()
-
-        if not connect_success and not self.ci_mode:
-            # Network error, exit code 1
-            return 1
+        core.start()
+        core.connect()
 
         # Main loop, process messages from networking thread
-        while not self.core.shutdown:
-            if self.network_msgs:
+        while not core.shutdown:
+            if self.thread_messages:
                 msgs = []
 
-                while self.network_msgs:
-                    msgs.append(self.network_msgs.popleft())
+                while self.thread_messages:
+                    msgs.append(self.thread_messages.popleft())
 
-                self.core.network_event(msgs)
+                core.process_thread_callback(msgs)
 
             time.sleep(1 / 60)
 
@@ -64,8 +64,8 @@ class Application:
         config.write_configuration()
         return 0
 
-    def network_callback(self, msgs):
-        self.network_msgs.extend(msgs)
+    def thread_callback(self, msgs):
+        self.thread_messages.extend(msgs)
 
     def init_exception_handler(self):
 
@@ -94,7 +94,7 @@ class Application:
         threading.Thread.__init__ = init_thread_excepthook
 
     def on_critical_error(self, _exc_type, exc_value, _exc_traceback):
-        self.core.quit()
+        core.quit()
         raise exc_value
 
     @staticmethod
@@ -104,54 +104,3 @@ class Application:
     def shares_unavailable(self, shares):
         for virtual_name, folder_path in shares:
             log.add("• \"%s\" %s" % (virtual_name, folder_path))
-
-    def show_scan_progress(self):
-        # Not implemented
-        pass
-
-    def set_scan_progress(self, value):
-        # Not implemented
-        pass
-
-    def set_scan_indeterminate(self):
-        # Not implemented
-        pass
-
-    def hide_scan_progress(self):
-        # Not implemented
-        pass
-
-    def confirm_force_rescan(self, title, message, _show_retry, _show_force):
-        log.add(f"{title}:\n\n{message}\n" + _("Rescan aborted") + "!")
-
-    def invalid_password(self):
-        # Not implemented
-        pass
-
-    def server_login(self):
-        # Not implemented
-        pass
-
-    def set_away_mode(self, is_away):
-        # Not implemented
-        pass
-
-    def set_connection_stats(self, msg):
-        # Not implemented
-        pass
-
-    def server_disconnect(self):
-        # Not implemented
-        pass
-
-    def setup(self):
-        # Not implemented
-        pass
-
-    def confirm_quit(self, _remember):
-        log.add(_('Quit Nicotine+'))
-        self.core.quit()
-
-    def quit(self):
-        # Not implemented
-        pass

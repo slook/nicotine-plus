@@ -35,6 +35,7 @@ from gi.repository import Gtk
 from gi.repository import Pango
 
 from pynicotine.config import config
+from pynicotine.core import core
 from pynicotine.gtkgui.application import GTK_API_VERSION
 from pynicotine.gtkgui.popovers.searchfilterhelp import SearchFilterHelp
 from pynicotine.gtkgui.widgets.filechooser import FileChooserButton
@@ -66,11 +67,10 @@ class NetworkFrame:
         # pylint: disable=invalid-name
         (self.AutoAway, self.AutoConnectStartup, self.AutoReply, self.CheckPortLabel,
          self.CurrentPort, self.FirstPort, self.Interface, self.InterfaceLabel, self.LastPort, self.Login, self.Main,
-         self.Server, self.UPnPInterval, self.UseUPnP, self.ctcptogglebutton) = ui_template.widgets
+         self.Server, self.UseUPnP, self.ctcptogglebutton) = ui_template.widgets
 
         self.preferences = preferences
         self.frame = preferences.frame
-        self.core = preferences.core
         self.portmap_required = False
 
         self.options = {
@@ -82,7 +82,6 @@ class NetworkFrame:
                 "autoreply": self.AutoReply,
                 "interface": self.Interface,
                 "upnp": self.UseUPnP,
-                "upnp_interval": self.UPnPInterval,
                 "auto_connect_startup": self.AutoConnectStartup,
                 "ctcpmsgs": self.ctcptogglebutton
             }
@@ -98,12 +97,12 @@ class NetworkFrame:
             self.Server.set_text("%s:%i" % (server["server"][0], server["server"][1]))
 
         text = _("<b>%(ip)s</b>, port %(port)s") % {
-            "ip": self.core.user_ip_address or _("Unknown"),
-            "port": self.core.protothread.listenport or _("Unknown")
+            "ip": core.user_ip_address or _("Unknown"),
+            "port": core.protothread.listenport or _("Unknown")
         }
         self.CurrentPort.set_markup(text)
 
-        url = config.portchecker_url % str(self.core.protothread.listenport)
+        url = config.portchecker_url % str(core.protothread.listenport or server["portrange"][0])
         text = "<a href='" + url + "' title='" + url + "'>" + _("Check Port Status") + "</a>"
         self.CheckPortLabel.set_markup(text)
         self.CheckPortLabel.connect("activate-link", lambda x, url: open_uri(url))
@@ -160,7 +159,6 @@ class NetworkFrame:
                 "autoreply": self.AutoReply.get_text(),
                 "interface": self.Interface.get_active_text(),
                 "upnp": self.UseUPnP.get_active(),
-                "upnp_interval": self.UPnPInterval.get_value_as_int(),
                 "auto_connect_startup": self.AutoConnectStartup.get_active(),
                 "ctcpmsgs": not self.ctcptogglebutton.get_active()
             }
@@ -170,9 +168,9 @@ class NetworkFrame:
 
         password = dialog.get_entry_value()
 
-        if user_status != self.core.user_status:
+        if user_status != core.user_status:
             MessageDialog(
-                parent=self.preferences.dialog,
+                parent=self.preferences.window,
                 title=_("Password Change Rejected"),
                 message=("Since your login status changed, your password has not been changed. Please try again.")
             ).show()
@@ -182,16 +180,16 @@ class NetworkFrame:
             self.on_change_password()
             return
 
-        if self.core.user_status == UserStatus.OFFLINE:
+        if core.user_status == UserStatus.OFFLINE:
             config.sections["server"]["passw"] = password
             config.write_configuration()
             return
 
-        self.core.request_change_password(password)
+        core.request_change_password(password)
 
     def on_change_password(self, *_args):
 
-        if self.core.user_status != UserStatus.OFFLINE:
+        if core.user_status != UserStatus.OFFLINE:
             message = _("Enter a new password for your Soulseek account:")
         else:
             message = (_("You are currently logged out of the Soulseek network. If you want to change "
@@ -200,19 +198,16 @@ class NetworkFrame:
                        + _("Enter password to use when logging in:"))
 
         EntryDialog(
-            parent=self.preferences.dialog,
+            parent=self.preferences.window,
             title=_("Change Password"),
             message=message,
             visibility=False,
             callback=self.on_change_password_response,
-            callback_data=self.core.user_status
+            callback_data=core.user_status
         ).show()
 
     def on_toggle_upnp(self, widget, *_args):
         self.portmap_required = widget.get_active()
-
-    def on_modify_upnp_interval(self, *_args):
-        self.portmap_required = True
 
 
 class DownloadsFrame:
@@ -231,9 +226,9 @@ class DownloadsFrame:
         self.preferences = preferences
         self.frame = preferences.frame
 
-        self.incomplete_dir = FileChooserButton(self.IncompleteDir, preferences.dialog, "folder")
-        self.download_dir = FileChooserButton(self.DownloadDir, preferences.dialog, "folder")
-        self.upload_dir = FileChooserButton(self.UploadDir, preferences.dialog, "folder")
+        self.incomplete_dir = FileChooserButton(self.IncompleteDir, preferences.window, "folder")
+        self.download_dir = FileChooserButton(self.DownloadDir, preferences.window, "folder")
+        self.upload_dir = FileChooserButton(self.UploadDir, preferences.window, "folder")
 
         self.filter_list_view = TreeView(
             self.frame, parent=self.FilterView, multi_select=True, activate_row_callback=self.on_edit_filter,
@@ -333,7 +328,7 @@ class DownloadsFrame:
     def on_add_filter(self, *_args):
 
         EntryDialog(
-            parent=self.preferences.dialog,
+            parent=self.preferences.window,
             title=_("Add Download Filter"),
             message=_("Enter a new download filter:"),
             callback=self.on_add_filter_response,
@@ -363,7 +358,7 @@ class DownloadsFrame:
             escaped = self.filter_list_view.get_row_value(iterator, 1)
 
             EntryDialog(
-                parent=self.preferences.dialog,
+                parent=self.preferences.window,
                 title=_("Edit Download Filter"),
                 message=_("Modify the following download filter:"),
                 callback=self.on_edit_filter_response,
@@ -451,7 +446,6 @@ class SharesFrame:
 
         self.preferences = preferences
         self.frame = preferences.frame
-        self.core = preferences.core
 
         self.rescan_required = False
         self.shareddirs = []
@@ -537,7 +531,7 @@ class SharesFrame:
         if folder in (x[1] for x in self.shareddirs + self.bshareddirs):
             return
 
-        virtual = self.core.shares.get_normalized_virtual_name(
+        virtual = core.shares.get_normalized_virtual_name(
             os.path.basename(os.path.normpath(folder)), shared_folders=(self.shareddirs + self.bshareddirs)
         )
         self.shares_list_view.add_row([virtual, folder, False])
@@ -552,10 +546,10 @@ class SharesFrame:
     def on_add_shared_dir(self, *_args):
 
         FolderChooser(
-            parent=self.preferences.dialog,
+            parent=self.preferences.window,
             callback=self.on_add_shared_dir_selected,
             title=_("Add a Shared Folder"),
-            multiple=True
+            select_multiple=True
         ).show()
 
     def on_edit_shared_dir_response(self, dialog, _response_id, iterator):
@@ -566,7 +560,7 @@ class SharesFrame:
         if not virtual:
             return
 
-        virtual = self.core.shares.get_normalized_virtual_name(
+        virtual = core.shares.get_normalized_virtual_name(
             virtual, shared_folders=(self.shareddirs + self.bshareddirs)
         )
         folder = self.shares_list_view.get_row_value(iterator, 1)
@@ -594,7 +588,7 @@ class SharesFrame:
             buddy_only = self.shares_list_view.get_row_value(iterator, 2)
 
             EntryDialog(
-                parent=self.preferences.dialog,
+                parent=self.preferences.window,
                 title=_("Edit Shared Folder"),
                 message=_("Enter new virtual name for '%(dir)s':") % {'dir': folder},
                 default=virtual_name,
@@ -696,7 +690,7 @@ class UserInfoFrame:
         self.preferences = preferences
         self.frame = preferences.frame
 
-        self.image_chooser = FileChooserButton(self.ImageChooser, preferences.dialog, "image")
+        self.image_chooser = FileChooserButton(self.ImageChooser, preferences.window, "image")
 
         self.options = {
             "userinfo": {
@@ -802,7 +796,7 @@ class IgnoredUsersFrame:
     def on_add_ignored(self, *_args):
 
         EntryDialog(
-            parent=self.preferences.dialog,
+            parent=self.preferences.window,
             title=_("Ignore User"),
             message=_("Enter the name of the user you want to ignore:"),
             callback=self.on_add_ignored_response
@@ -843,7 +837,7 @@ class IgnoredUsersFrame:
     def on_add_ignored_ip(self, *_args):
 
         EntryDialog(
-            parent=self.preferences.dialog,
+            parent=self.preferences.window,
             title=_("Ignore IP Address"),
             message=_("Enter an IP address you want to ignore:") + " " + _("* is a wildcard"),
             callback=self.on_add_ignored_ip_response
@@ -951,7 +945,7 @@ class BannedUsersFrame:
     def on_add_banned(self, *_args):
 
         EntryDialog(
-            parent=self.preferences.dialog,
+            parent=self.preferences.window,
             title=_("Ban User"),
             message=_("Enter the name of the user you want to ban:"),
             callback=self.on_add_banned_response
@@ -993,7 +987,7 @@ class BannedUsersFrame:
     def on_add_blocked(self, *_args):
 
         EntryDialog(
-            parent=self.preferences.dialog,
+            parent=self.preferences.window,
             title=_("Block IP Address"),
             message=_("Enter an IP address you want to block:") + " " + _("* is a wildcard"),
             callback=self.on_add_blocked_response
@@ -1171,7 +1165,7 @@ class ChatsFrame:
     def on_add_censored(self, *_args):
 
         EntryDialog(
-            parent=self.preferences.dialog,
+            parent=self.preferences.window,
             title=_("Censor Pattern"),
             message=_("Enter a pattern you want to censor. Add spaces around the pattern if you don't "
                       "want to match strings inside words (may fail at the beginning and end of lines)."),
@@ -1197,7 +1191,7 @@ class ChatsFrame:
             pattern = self.censor_list_view.get_row_value(iterator, 0)
 
             EntryDialog(
-                parent=self.preferences.dialog,
+                parent=self.preferences.window,
                 title=_("Edit Censored Pattern"),
                 message=_("Enter a pattern you want to censor. Add spaces around the pattern if you don't "
                           "want to match strings inside words (may fail at the beginning and end of lines)."),
@@ -1229,7 +1223,7 @@ class ChatsFrame:
     def on_add_replacement(self, *_args):
 
         EntryDialog(
-            parent=self.preferences.dialog,
+            parent=self.preferences.window,
             title=_("Add Replacement"),
             message=_("Enter a text pattern and what to replace it with"),
             callback=self.on_add_replacement_response,
@@ -1258,7 +1252,7 @@ class ChatsFrame:
             replacement = self.replacement_list_view.get_row_value(iterator, 1)
 
             EntryDialog(
-                parent=self.preferences.dialog,
+                parent=self.preferences.window,
                 title=_("Edit Replacement"),
                 message=_("Enter a text pattern and what to replace it with:"),
                 callback=self.on_edit_replacement_response,
@@ -1310,7 +1304,7 @@ class UserInterfaceFrame:
         self.frame = preferences.frame
         self.theme_required = False
 
-        self.theme_dir = FileChooserButton(self.ThemeDir, preferences.dialog, "folder")
+        self.theme_dir = FileChooserButton(self.ThemeDir, preferences.window, "folder")
 
         self.tabs = {
             "search": self.EnableSearchTab,
@@ -1616,10 +1610,10 @@ class LoggingFrame:
         self.preferences = preferences
         self.frame = preferences.frame
 
-        self.private_log_dir = FileChooserButton(self.PrivateLogDir, preferences.dialog, "folder")
-        self.room_log_dir = FileChooserButton(self.RoomLogDir, preferences.dialog, "folder")
-        self.transfers_log_dir = FileChooserButton(self.TransfersLogDir, preferences.dialog, "folder")
-        self.debug_log_dir = FileChooserButton(self.DebugLogDir, preferences.dialog, "folder")
+        self.private_log_dir = FileChooserButton(self.PrivateLogDir, preferences.window, "folder")
+        self.room_log_dir = FileChooserButton(self.RoomLogDir, preferences.window, "folder")
+        self.transfers_log_dir = FileChooserButton(self.TransfersLogDir, preferences.window, "folder")
+        self.debug_log_dir = FileChooserButton(self.DebugLogDir, preferences.window, "folder")
 
         self.options = {
             "logging": {
@@ -1675,7 +1669,7 @@ class SearchesFrame:
         self.frame = preferences.frame
         self.search_required = False
 
-        self.filter_help = SearchFilterHelp(self.preferences.dialog)
+        self.filter_help = SearchFilterHelp(self.preferences.window)
         self.ShowSearchHelp.set_popover(self.filter_help.popover)
 
         self.options = {
@@ -1873,7 +1867,7 @@ class UrlHandlersFrame:
     def on_add_handler(self, *_args):
 
         EntryDialog(
-            parent=self.preferences.dialog,
+            parent=self.preferences.window,
             title=_("Add URL Handler"),
             message=_("Enter the protocol and the command for the URL handler:"),
             callback=self.on_add_handler_response,
@@ -1901,7 +1895,7 @@ class UrlHandlersFrame:
             command = self.protocol_list_view.get_row_value(iterator, 1)
 
             EntryDialog(
-                parent=self.preferences.dialog,
+                parent=self.preferences.window,
                 title=_("Edit Command"),
                 message=_("Enter a new command for protocol %s:") % protocol,
                 callback=self.on_edit_handler_response,
@@ -1932,7 +1926,6 @@ class NowPlayingFrame:
 
         self.preferences = preferences
         self.frame = preferences.frame
-        self.core = preferences.core
 
         self.options = {
             "players": {
@@ -1953,10 +1946,10 @@ class NowPlayingFrame:
         ]
         self.custom_format_list = []
 
-        # Suppy the information needed for the Now Playing class to return a song
+        # Supply the information needed for the Now Playing class to return a song
         self.test_now_playing.connect(
             "clicked",
-            self.core.now_playing.display_now_playing,
+            core.now_playing.display_now_playing,
             self.set_now_playing_example,  # Callback to update the song displayed
             self.get_player,               # Callback to retrieve selected player
             self.get_command,              # Callback to retrieve command text
@@ -2108,7 +2101,6 @@ class PluginsFrame:
 
         self.preferences = preferences
         self.frame = preferences.frame
-        self.core = preferences.core
 
         self.options = {
             "plugins": {
@@ -2120,7 +2112,7 @@ class PluginsFrame:
         self.selected_plugin = None
         self.descr_textview = TextView(self.PluginDescription)
         self.plugin_list_view = TreeView(
-            self.frame, parent=self.PluginTreeView, search_column=1, always_select=True,
+            self.frame, parent=self.PluginTreeView, always_select=True,
             select_row_callback=self.on_select_plugin,
             columns=[
                 # Visible columns
@@ -2140,9 +2132,9 @@ class PluginsFrame:
 
         self.preferences.set_widgets_data(self.options)
 
-        for plugin_id in sorted(self.core.pluginhandler.list_installed_plugins()):
+        for plugin_id in sorted(core.pluginhandler.list_installed_plugins()):
             try:
-                info = self.core.pluginhandler.get_plugin_info(plugin_id)
+                info = core.pluginhandler.get_plugin_info(plugin_id)
             except OSError:
                 continue
 
@@ -2163,7 +2155,7 @@ class PluginsFrame:
         }
 
     def check_properties_button(self, plugin):
-        self.PluginProperties.set_sensitive(bool(self.core.pluginhandler.get_plugin_settings(plugin)))
+        self.PluginProperties.set_sensitive(bool(core.pluginhandler.get_plugin_settings(plugin)))
 
     def on_select_plugin(self, list_view, iterator):
 
@@ -2172,7 +2164,7 @@ class PluginsFrame:
             info = {}
         else:
             self.selected_plugin = list_view.get_row_value(iterator, 2)
-            info = self.core.pluginhandler.get_plugin_info(self.selected_plugin)
+            info = core.pluginhandler.get_plugin_info(self.selected_plugin)
 
         self.PluginName.set_markup("<b>%(name)s</b>" % {"name": info.get("Name", self.selected_plugin)})
         self.PluginVersion.set_markup("<b>%(version)s</b>" % {"version": info.get("Version", '-')})
@@ -2191,10 +2183,10 @@ class PluginsFrame:
         list_view.set_row_value(iterator, 0, not value)
 
         if not value:
-            self.core.pluginhandler.enable_plugin(plugin_id)
+            core.pluginhandler.enable_plugin(plugin_id)
             self.enabled_plugins.append(plugin_id)
         else:
-            self.core.pluginhandler.disable_plugin(plugin_id)
+            core.pluginhandler.disable_plugin(plugin_id)
             self.enabled_plugins.remove(plugin_id)
 
         self.check_properties_button(plugin_id)
@@ -2204,19 +2196,19 @@ class PluginsFrame:
         if self.PluginsEnable.get_active():
             # Enable all selected plugins
             for plugin_id in self.enabled_plugins:
-                self.core.pluginhandler.enable_plugin(plugin_id)
+                core.pluginhandler.enable_plugin(plugin_id)
 
             self.check_properties_button(self.selected_plugin)
             return
 
         # Disable all plugins
-        for plugin in self.core.pluginhandler.enabled_plugins.copy():
-            self.core.pluginhandler.disable_plugin(plugin)
+        for plugin in core.pluginhandler.enabled_plugins.copy():
+            core.pluginhandler.disable_plugin(plugin)
 
         self.PluginProperties.set_sensitive(False)
 
     def on_add_plugins(self, *_args):
-        open_file_path(self.core.pluginhandler.user_plugin_folder, create_folder=True)
+        open_file_path(core.pluginhandler.user_plugin_folder, create_folder=True)
 
     def on_plugin_properties(self, *_args):
 
@@ -2227,16 +2219,15 @@ class PluginsFrame:
             self.frame,
             self.preferences,
             plugin_id=self.selected_plugin,
-            plugin_settings=self.core.pluginhandler.get_plugin_settings(self.selected_plugin)
+            plugin_settings=core.pluginhandler.get_plugin_settings(self.selected_plugin)
         ).show()
 
 
 class Preferences(Dialog):
 
-    def __init__(self, frame, core):
+    def __init__(self, frame):
 
         self.frame = frame
-        self.core = core
 
         ui_template = UserInterface(scope=self, path="dialogs/preferences.ui")
         (
@@ -2253,23 +2244,24 @@ class Preferences(Dialog):
         super().__init__(
             parent=frame.window,
             content_box=self.container,
-            buttons=[(self.cancel_button, Gtk.ResponseType.CANCEL),
-                     (self.export_button, Gtk.ResponseType.HELP),
-                     (self.apply_button, Gtk.ResponseType.APPLY),
-                     (self.ok_button, Gtk.ResponseType.OK)],
-            default_response=Gtk.ResponseType.OK,
+            buttons_start=(self.cancel_button, self.export_button),
+            buttons_end=(self.apply_button, self.ok_button),
+            default_button=self.ok_button,
             close_callback=self.on_close,
             title=_("Preferences"),
             width=960,
             height=650,
-            close_destroy=False
+            close_destroy=False,
+            show_title_buttons=False
         )
 
-        # Scroll to focused widgets
-        if GTK_API_VERSION == 3:
-            self.viewport.set_focus_vadjustment(self.content.get_vadjustment())
+        if GTK_API_VERSION >= 4:
+            self.window.add_css_class("preferences-border")
+        else:
+            self.window.get_style_context().add_class("preferences-border")
 
-        self.dialog.get_style_context().add_class("preferences-border")
+            # Scroll to focused widgets
+            self.viewport.set_focus_vadjustment(self.content.get_vadjustment())
 
         self.pages = {}
         self.page_ids = [
@@ -2549,9 +2541,9 @@ class Preferences(Dialog):
             config.sections[key].update(data)
 
         if portmap_required:
-            self.core.protothread.upnp.add_port_mapping()
+            core.protothread.upnp.add_port_mapping()
         else:
-            self.core.protothread.upnp.cancel_timer()
+            core.protothread.upnp.cancel_timer()
 
         if theme_required:
             # Dark mode
@@ -2582,7 +2574,7 @@ class Preferences(Dialog):
             self.frame.update_completions()
 
         if ip_block_required:
-            self.core.network_filter.close_blocked_ip_connections()
+            core.network_filter.close_blocked_ip_connections()
 
         if search_required:
             self.frame.search.populate_search_history()
@@ -2592,9 +2584,9 @@ class Preferences(Dialog):
         self.frame.privatechat.toggle_chat_buttons()
 
         # Transfers
-        self.core.transfers.update_limits()
-        self.core.transfers.update_download_filters()
-        self.core.transfers.check_upload_queue()
+        core.transfers.update_limits()
+        core.transfers.update_download_filters()
+        core.transfers.check_upload_queue()
 
         # Tray icon
         if not config.sections["ui"]["trayicon"] and self.frame.tray_icon.is_visible():
@@ -2625,7 +2617,7 @@ class Preferences(Dialog):
             return
 
         if rescan_required:
-            self.core.shares.rescan_shares()
+            core.shares.rescan_shares()
 
         self.close()
 
@@ -2642,7 +2634,7 @@ class Preferences(Dialog):
     def on_back_up_config(self, *_args):
 
         FileChooserSave(
-            parent=self.dialog,
+            parent=self.window,
             callback=self.on_back_up_config_response,
             initial_folder=os.path.dirname(config.filename),
             initial_file="config backup %s.tar.bz2" % (time.strftime("%Y-%m-%d %H_%M_%S")),

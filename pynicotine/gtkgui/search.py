@@ -25,12 +25,13 @@ import operator
 import re
 
 from collections import defaultdict
-from collections import OrderedDict
 
 from gi.repository import GObject
 from gi.repository import Gtk
 
 from pynicotine.config import config
+from pynicotine.core import core
+from pynicotine.events import events
 from pynicotine.gtkgui.application import GTK_API_VERSION
 from pynicotine.gtkgui.dialogs.fileproperties import FileProperties
 from pynicotine.gtkgui.dialogs.wishlist import WishList
@@ -63,10 +64,10 @@ from pynicotine.utils import human_speed
 
 class Searches(IconNotebook):
 
-    def __init__(self, frame, core):
+    def __init__(self, frame):
 
         super().__init__(
-            frame, core,
+            frame,
             widget=frame.search_notebook,
             parent_page=frame.search_page,
             switch_page_callback=self.on_switch_search_page
@@ -91,13 +92,21 @@ class Searches(IconNotebook):
         frame.search_mode_label.set_label(self.modes["global"])
 
         if GTK_API_VERSION >= 4:
-            frame.search_mode_button.get_first_child().get_style_context().add_class("arrow-button")
+            frame.search_mode_button.get_first_child().add_css_class("arrow-button")
 
         CompletionEntry(frame.room_search_entry, frame.room_search_combobox.get_model())
         CompletionEntry(frame.search_entry, frame.search_combobox.get_model())
 
         self.file_properties = None
-        self.wish_list = WishList(frame, core, self)
+        self.wish_list = WishList(frame, self)
+
+        for event_name, callback in (
+            ("do-search", self.do_search),
+            ("remove-search", self.remove_search),
+            ("file-search-response", self.file_search_response)
+        ):
+            events.connect(event_name, callback)
+
         self.populate_search_history()
         self.update_visuals()
 
@@ -138,7 +147,7 @@ class Searches(IconNotebook):
         user = self.frame.user_search_entry.get_text()
 
         self.frame.search_entry.set_text("")
-        self.core.search.do_search(text, mode, room=room, user=user)
+        core.search.do_search(text, mode, room=room, user=user)
 
     def populate_search_history(self):
 
@@ -234,33 +243,29 @@ class Searches(IconNotebook):
                          close_callback=tab.on_close, full_text=full_text)
         tab.set_label(self.get_tab_label_inner(tab.container))
 
-    def show_search_result(self, msg, username, country):
+    def file_search_response(self, msg):
 
         tab = self.pages.get(msg.token)
 
         if tab is None:
-            search_term = self.core.search.searches[msg.token]["term"]
+            search_item = core.search.searches.get(msg.token)
+
+            if search_item is None:
+                return
+
+            search_term = search_item["term"]
             mode = "wishlist"
             mode_label = _("Wish")
             tab = self.create_tab(msg.token, search_term, mode, mode_label, showtab=False)
 
         # No more things to add because we've reached the result limit
         if tab.num_results_found >= tab.max_limit:
-            self.core.search.remove_allowed_token(msg.token)
+            core.search.remove_allowed_token(msg.token)
             tab.max_limited = True
             tab.update_result_counter()
             return
 
-        tab.add_user_results(msg, username, country)
-
-    def add_wish(self, wish):
-        self.wish_list.add_wish(wish)
-
-    def remove_wish(self, wish):
-        self.wish_list.remove_wish(wish)
-
-    def set_wishlist_interval(self, msg):
-        self.wish_list.set_interval(msg)
+        tab.file_search_response(msg)
 
     def update_visuals(self):
 
@@ -268,14 +273,6 @@ class Searches(IconNotebook):
             page.update_visuals()
 
         self.wish_list.update_visuals()
-
-    def server_login(self):
-        # Not needed
-        pass
-
-    def server_disconnect(self):
-        # Not needed
-        pass
 
 
 class Search:
@@ -309,7 +306,6 @@ class Search:
 
         self.searches = searches
         self.frame = searches.frame
-        self.core = searches.core
 
         self.text = text
         self.searchterm_words_include = []
@@ -345,8 +341,8 @@ class Search:
         self.max_limited = False
 
         # Use dict instead of list for faster membership checks
-        self.selected_users = OrderedDict()
-        self.selected_results = OrderedDict()
+        self.selected_users = {}
+        self.selected_results = {}
 
         self.operators = {
             '<': operator.lt,
@@ -670,12 +666,23 @@ class Search:
 
         return update_ui
 
-    def add_user_results(self, msg, user, country):
+    def file_search_response(self, msg):
+
+        user = msg.init.target_user
 
         if user in self.users:
             return
 
         self.users.add(user)
+        ip_address = msg.init.addr[0]
+
+        if ip_address:
+            country = core.geoip.get_country_code(ip_address)
+        else:
+            country = ""
+
+        if country == "-":
+            country = ""
 
         if msg.freeulslots:
             inqueue = 0
@@ -709,7 +716,7 @@ class Search:
                 self.showtab = True
 
                 if self.mode == "wishlist" and config.sections["notifications"]["notification_popup_wish"]:
-                    self.core.notifications.new_text_notification(self.text, title=_("Wishlist item found"))
+                    core.notifications.show_text_notification(self.text, title=_("Wishlist Results Found"))
 
             self.searches.request_tab_hilite(self.container)
 
@@ -1019,7 +1026,7 @@ class Search:
             self.add_wish_button.hide()
             return
 
-        if not self.core.search.is_wish(self.text):
+        if not core.search.is_wish(self.text):
             self.add_wish_icon.set_property("icon-name", "list-add-symbolic")
             self.add_wish_label.set_label(_("Add Wi_sh"))
             return
@@ -1029,10 +1036,10 @@ class Search:
 
     def on_add_wish(self, *_args):
 
-        if self.core.search.is_wish(self.text):
-            self.core.search.remove_wish(self.text)
+        if core.search.is_wish(self.text):
+            core.search.remove_wish(self.text)
         else:
-            self.core.search.add_wish(self.text)
+            core.search.add_wish(self.text)
 
     def add_popup_menu_user(self, popup, user):
 
@@ -1208,7 +1215,7 @@ class Search:
             folder = self.resultsmodel.get_value(iterator, 11).rsplit('\\', 1)[0] + '\\'
 
             if user not in requested_users and folder not in requested_folders:
-                self.core.userbrowse.browse_user(user, path=folder)
+                core.userbrowse.browse_user(user, path=folder)
 
                 requested_users.add(user)
                 requested_folders.add(folder)
@@ -1226,7 +1233,7 @@ class Search:
             selected_size += file_size
             selected_length += self.resultsmodel.get_value(iterator, 16)
             country_code = self.resultsmodel.get_value(iterator, 12)
-            country = "%s (%s)" % (self.core.geoip.country_code_to_name(country_code), country_code)
+            country = "%s (%s)" % (core.geoip.country_code_to_name(country_code), country_code)
 
             data.append({
                 "user": self.resultsmodel.get_value(iterator, 1),
@@ -1243,7 +1250,7 @@ class Search:
 
         if data:
             if self.searches.file_properties is None:
-                self.searches.file_properties = FileProperties(self.frame, self.core)
+                self.searches.file_properties = FileProperties(self.frame, core)
 
             self.searches.file_properties.update_properties(data, selected_size, selected_length)
             self.searches.file_properties.show()
@@ -1257,7 +1264,7 @@ class Search:
             bitrate = self.resultsmodel.get_value(iterator, 8)
             length = self.resultsmodel.get_value(iterator, 9)
 
-            self.core.transfers.get_file(
+            core.transfers.get_file(
                 user, filepath, prefix, size=size, bitrate=bitrate, length=length)
 
     def on_download_files_to_selected(self, selected, _data):
@@ -1278,7 +1285,7 @@ class Search:
             """ Custom download location specified, remember it when peer sends a folder
             contents reply """
 
-            requested_folders = self.core.transfers.requested_folders
+            requested_folders = core.transfers.requested_folders
         else:
             requested_folders = defaultdict(dict)
 
@@ -1302,7 +1309,7 @@ class Search:
 
                 # remove_destination is False because we need the destination for the full folder
                 # contents response later
-                destination = self.core.transfers.get_folder_destination(user, folder, remove_destination=False)
+                destination = core.transfers.get_folder_destination(user, folder, remove_destination=False)
 
                 (_counter, user, _flag, _h_speed, _h_queue, _directory, _filename,
                     _h_size, h_bitrate, h_length, _bitrate, fullpath, _country, size, _speed,
@@ -1310,7 +1317,7 @@ class Search:
                 visible_files.append(
                     (user, fullpath, destination, size.get_value(), h_bitrate, h_length))
 
-            self.core.search.request_folder_download(user, folder, visible_files)
+            core.search.request_folder_download(user, folder, visible_files)
 
     def on_download_folders_to_selected(self, selected, _data):
         self.on_download_folders(download_location=selected)
@@ -1336,7 +1343,7 @@ class Search:
         for iterator in self.selected_results.values():
             user = self.resultsmodel.get_value(iterator, 1)
             filepath = self.resultsmodel.get_value(iterator, 11)
-            url = self.core.userbrowse.get_soulseek_url(user, filepath)
+            url = core.userbrowse.get_soulseek_url(user, filepath)
             copy_text(url)
             return
 
@@ -1345,7 +1352,7 @@ class Search:
         for iterator in self.selected_results.values():
             user = self.resultsmodel.get_value(iterator, 1)
             filepath = self.resultsmodel.get_value(iterator, 11)
-            url = self.core.userbrowse.get_soulseek_url(user, filepath.rsplit('\\', 1)[0] + '\\')
+            url = core.userbrowse.get_soulseek_url(user, filepath.rsplit('\\', 1)[0] + '\\')
             copy_text(url)
             return
 
@@ -1541,16 +1548,21 @@ class Search:
         self.clear_model(stored_results=True)
 
         # Allow parsing search result messages again
-        self.core.search.add_allowed_token(self.token)
+        core.search.add_allowed_token(self.token)
 
         # Update number of results widget
         self.update_result_counter()
 
     def on_focus(self, *_args):
+
+        if self.frame.search_entry.get_text():
+            # Search entry contains text, let it grab focus instead
+            return
+
         self.tree_view.grab_focus()
 
     def on_close(self, *_args):
-        self.core.search.remove_search(self.token)
+        core.search.remove_search(self.token)
 
     def on_close_all_tabs(self, *_args):
         self.searches.remove_all_pages()

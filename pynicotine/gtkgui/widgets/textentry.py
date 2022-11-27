@@ -23,6 +23,7 @@ from os.path import commonprefix
 from gi.repository import Gtk
 
 from pynicotine.config import config
+from pynicotine.core import core
 from pynicotine.gtkgui.widgets.accelerator import Accelerator
 from pynicotine.logfacility import log
 from pynicotine.slskmessages import UserStatus
@@ -39,7 +40,6 @@ class ChatEntry:
     def __init__(self, frame, entry, completion, entity, message_class, send_message, is_chatroom=False):
 
         self.frame = frame
-        self.core = frame.core
         self.entry = entry
         self.completion = completion
         self.entity = entity
@@ -69,7 +69,7 @@ class ChatEntry:
 
     def on_enter(self, *_args):
 
-        if self.core.user_status == UserStatus.OFFLINE:
+        if core.user_status == UserStatus.OFFLINE:
             return
 
         text = self.entry.get_text()
@@ -111,11 +111,11 @@ class ChatEntry:
 
         # Allow the command line to be edited if parsing rejects the line or if the plugin returns False
         if self.is_chatroom:
-            if not self.core.pluginhandler.trigger_chatroom_command_event(self.entity, cmd[1:], args):
+            if not core.pluginhandler.trigger_chatroom_command_event(self.entity, cmd[1:], args):
                 self.entry.grab_focus()
                 return
 
-        elif not self.core.pluginhandler.trigger_private_chat_command_event(self.entity, cmd[1:], args):
+        elif not core.pluginhandler.trigger_private_chat_command_event(self.entity, cmd[1:], args):
             self.entry.grab_focus()
             return
 

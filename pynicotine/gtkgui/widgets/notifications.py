@@ -26,6 +26,8 @@ from gi.repository import Gdk
 from gi.repository import Gio
 
 from pynicotine.config import config
+from pynicotine.core import core
+from pynicotine.events import events
 from pynicotine.gtkgui.application import GTK_API_VERSION
 from pynicotine.logfacility import log
 from pynicotine.utils import truncate_string_byte
@@ -33,20 +35,21 @@ from pynicotine.utils import truncate_string_byte
 
 class Notifications:
 
-    def __init__(self, frame, core):
+    def __init__(self, frame):
 
         self.frame = frame
-        self.core = core
         self.application = Gio.Application.get_default()
 
         if sys.platform == "win32":
             self.win_notification = WinNotify(self.frame.tray_icon)
 
+        events.connect("show-text-notification", self._show_text_notification)
+
     def add(self, location, user, room=None):
 
         item = room if location == "rooms" else user
 
-        if self.core.notifications.add_hilite_item(location, item):
+        if core.notifications.add_hilite_item(location, item):
             self.frame.tray_icon.update_icon()
 
         if config.sections["ui"]["urgencyhint"] and not self.frame.window.is_active():
@@ -58,7 +61,7 @@ class Notifications:
 
         item = room if location == "rooms" else user
 
-        if self.core.notifications.remove_hilite_item(location, item):
+        if core.notifications.remove_hilite_item(location, item):
             self.set_title(item)
             self.frame.tray_icon.update_icon()
 
@@ -66,8 +69,8 @@ class Notifications:
 
         app_name = config.application_name
 
-        if (not self.core.notifications.chat_hilites["rooms"]
-                and not self.core.notifications.chat_hilites["private"]):
+        if (not core.notifications.chat_hilites["rooms"]
+                and not core.notifications.chat_hilites["private"]):
             # Reset Title
             self.frame.window.set_title(app_name)
             return
@@ -75,26 +78,21 @@ class Notifications:
         if not config.sections["notifications"]["notification_window_title"]:
             return
 
-        if self.core.notifications.chat_hilites["private"]:
+        if core.notifications.chat_hilites["private"]:
             # Private Chats have a higher priority
-            user = self.core.notifications.chat_hilites["private"][-1]
+            user = core.notifications.chat_hilites["private"][-1]
 
             self.frame.window.set_title(
                 app_name + " - " + _("Private Message from %(user)s") % {'user': user}
             )
 
-        elif self.core.notifications.chat_hilites["rooms"]:
+        elif core.notifications.chat_hilites["rooms"]:
             # Allow for the possibility the username is not available
-            room = self.core.notifications.chat_hilites["rooms"][-1]
+            room = core.notifications.chat_hilites["rooms"][-1]
 
-            if user is None:
-                self.frame.window.set_title(
-                    app_name + " - " + _("You've been mentioned in the %(room)s room") % {'room': room}
-                )
-            else:
-                self.frame.window.set_title(
-                    app_name + " - " + _("%(user)s mentioned you in the %(room)s room") % {'user': user, 'room': room}
-                )
+            self.frame.window.set_title(
+                app_name + " - " + _("Mentioned by %(user)s in Room %(room)s") % {'user': user, 'room': room}
+            )
 
     def set_urgency_hint(self, enabled):
 
@@ -110,7 +108,7 @@ class Notifications:
             # No support for urgency hints
             pass
 
-    def new_text_notification(self, message, title=None, priority=Gio.NotificationPriority.NORMAL):
+    def _show_text_notification(self, message, title=None, high_priority=False):
 
         if title is None:
             title = config.application_name
@@ -131,6 +129,8 @@ class Notifications:
 
                 return
 
+            priority = Gio.NotificationPriority.HIGH if high_priority else Gio.NotificationPriority.NORMAL
+
             notification_popup = Gio.Notification.new(title)
             notification_popup.set_body(message)
             notification_popup.set_priority(priority)
@@ -138,7 +138,7 @@ class Notifications:
             self.application.send_notification(None, notification_popup)
 
             if config.sections["notifications"]["notification_popup_sound"]:
-                Gdk.beep()
+                Gdk.Display.get_default().beep()
 
         except Exception as error:
             log.add(_("Unable to show notification: %s"), str(error))

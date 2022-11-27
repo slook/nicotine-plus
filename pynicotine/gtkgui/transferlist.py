@@ -24,8 +24,6 @@
 
 import time
 
-from collections import OrderedDict
-
 from gi.repository import GObject
 from gi.repository import Gtk
 
@@ -56,9 +54,10 @@ from pynicotine.utils import humanize
 class TransferList:
 
     path_separator = path_label = retry_label = abort_label = None
+    deprioritized_statuses = ()
     transfer_page = user_counter = file_counter = expand_button = expand_icon = grouping_button = None
 
-    def __init__(self, frame, core, transfer_type):
+    def __init__(self, frame, transfer_type):
 
         ui_template = UserInterface(scope=self, path=transfer_type + "s.ui")
         (
@@ -68,7 +67,6 @@ class TransferList:
         ) = ui_template.widgets
 
         self.frame = frame
-        self.core = core
         self.type = transfer_type
 
         if GTK_API_VERSION >= 4:
@@ -87,8 +85,8 @@ class TransferList:
         self.file_properties = None
 
         # Use dict instead of list for faster membership checks
-        self.selected_users = OrderedDict()
-        self.selected_transfers = OrderedDict()
+        self.selected_users = {}
+        self.selected_transfers = {}
 
         # Status list
         self.statuses = {
@@ -100,23 +98,20 @@ class TransferList:
             "Connection timeout": _("Connection timeout"),
             "Pending shutdown.": _("Pending shutdown"),
             "User logged off": _("User logged off"),
-            "Disallowed extension": _("Disallowed extension"),  # Sent by Soulseek NS for filtered extensions
-            "Aborted": _("Aborted"),
+            "Disallowed extension": _("Disallowed extension"),
             "Cancelled": _("Cancelled"),
             "Paused": _("Paused"),
             "Finished": _("Finished"),
             "Filtered": _("Filtered"),
             "Banned": _("Banned"),
-            "Blocked country": _("Blocked country"),
             "Too many files": _("Too many files"),
             "Too many megabytes": _("Too many megabytes"),
             "File not shared": _("File not shared"),
-            "File not shared.": _("File not shared"),  # Newer variant containing a dot
+            "File not shared.": _("File not shared"),
             "Download folder error": _("Download folder error"),
             "Local file error": _("Local file error"),
             "Remote file error": _("Remote file error")
         }
-        self.deprioritized_statuses = ("", "Paused", "Aborted", "Finished", "Filtered")
 
         self.create_model()
 
@@ -223,14 +218,6 @@ class TransferList:
         self.transfer_list = transfer_list
         self.update_model()
 
-    def server_login(self):
-        # Not needed
-        pass
-
-    def server_disconnect(self):
-        # Not needed
-        pass
-
     def save_columns(self):
         save_columns(self.type, self.tree_view.get_columns())
 
@@ -312,7 +299,7 @@ class TransferList:
         self.last_redraw_time = current_time
         self.tree_view.queue_draw()
 
-    def update_model(self, transfer=None, forceupdate=False, update_parent=True):
+    def update_model(self, transfer=None, update_parent=True, forceupdate=False):
 
         if not forceupdate and self.frame.current_page_id != self.transfer_page.id:
             # No need to do unnecessary work if transfers are not visible
@@ -392,7 +379,7 @@ class TransferList:
     def update_parent_row(self, initer, key, folder=False):
 
         speed = 0.0
-        total_size = current_bytes = 0
+        total_size = current_byte_offset = 0
         elapsed = 0
         salient_status = ""
 
@@ -423,13 +410,13 @@ class TransferList:
 
             elapsed += transfer.time_elapsed or 0
             total_size += transfer.size or 0
-            current_bytes += transfer.current_byte_offset or 0
+            current_byte_offset += transfer.current_byte_offset or 0
 
             iterator = self.transfersmodel.iter_next(iterator)
 
         transfer = self.transfersmodel.get_value(initer, 16)
         total_size = min(total_size, UINT64_LIMIT)
-        current_bytes = min(current_bytes, UINT64_LIMIT)
+        current_byte_offset = min(current_byte_offset, UINT64_LIMIT)
 
         if transfer.status != salient_status:
             self.transfersmodel.set_value(initer, 3, self.translate_status(salient_status))
@@ -441,21 +428,22 @@ class TransferList:
             transfer.speed = speed
 
         if transfer.time_elapsed != elapsed:
-            left = (total_size - current_bytes) / speed if speed and total_size > current_bytes else 0
+            left = (total_size - current_byte_offset) / speed if speed and total_size > current_byte_offset else 0
             self.transfersmodel.set_value(initer, 8, self.get_helapsed(elapsed))
             self.transfersmodel.set_value(initer, 9, self.get_hleft(left))
             self.transfersmodel.set_value(initer, 14, elapsed)
             self.transfersmodel.set_value(initer, 15, GObject.Value(GObject.TYPE_UINT64, left))
             transfer.time_elapsed = elapsed
 
-        if transfer.current_byte_offset != current_bytes:
-            self.transfersmodel.set_value(initer, 5, self.get_percent(current_bytes, total_size))
-            self.transfersmodel.set_value(initer, 6, "%s / %s" % (human_size(current_bytes), human_size(total_size)))
-            self.transfersmodel.set_value(initer, 11, GObject.Value(GObject.TYPE_UINT64, current_bytes))
-            transfer.current_byte_offset = current_bytes
+        if transfer.current_byte_offset != current_byte_offset:
+            self.transfersmodel.set_value(initer, 5, self.get_percent(current_byte_offset, total_size))
+            self.transfersmodel.set_value(initer, 6, self.get_hsize(current_byte_offset, total_size))
+            self.transfersmodel.set_value(initer, 11, GObject.Value(GObject.TYPE_UINT64, current_byte_offset))
+            transfer.current_byte_offset = current_byte_offset
 
         if transfer.size != total_size:
-            self.transfersmodel.set_value(initer, 6, "%s / %s" % (human_size(current_bytes), human_size(total_size)))
+            self.transfersmodel.set_value(initer, 5, self.get_percent(current_byte_offset, total_size))
+            self.transfersmodel.set_value(initer, 6, self.get_hsize(current_byte_offset, total_size))
             self.transfersmodel.set_value(initer, 10, GObject.Value(GObject.TYPE_UINT64, total_size))
             transfer.size = total_size
 
@@ -496,13 +484,12 @@ class TransferList:
                 self.transfersmodel.set_value(initer, 15, GObject.Value(GObject.TYPE_UINT64, left))
 
             if self.transfersmodel.get_value(initer, 11) != current_byte_offset:
-                percent = self.get_percent(current_byte_offset, size)
-
-                self.transfersmodel.set_value(initer, 5, percent)
+                self.transfersmodel.set_value(initer, 5, self.get_percent(current_byte_offset, size))
                 self.transfersmodel.set_value(initer, 6, self.get_hsize(current_byte_offset, size))
                 self.transfersmodel.set_value(initer, 11, GObject.Value(GObject.TYPE_UINT64, current_byte_offset))
 
             elif self.transfersmodel.get_value(initer, 10) != size:
+                self.transfersmodel.set_value(initer, 5, self.get_percent(current_byte_offset, size))
                 self.transfersmodel.set_value(initer, 6, self.get_hsize(current_byte_offset, size))
                 self.transfersmodel.set_value(initer, 10, GObject.Value(GObject.TYPE_UINT64, size))
 
@@ -751,17 +738,17 @@ class TransferList:
 
         mode = state.get_string()
         active = mode != "ungrouped"
-        grouping_button_style = self.grouping_button.get_parent().get_style_context()
         popover = self.grouping_button.get_popover()
 
         if popover is not None:
             popover.hide()
 
-        # Ensure buttons are flat in libadwaita
-        if active:
-            grouping_button_style.add_class("linked")
-        else:
-            grouping_button_style.remove_class("linked")
+        if GTK_API_VERSION >= 4:
+            # Ensure buttons are flat in libadwaita
+            if active:
+                self.grouping_button.get_parent().add_css_class("linked")
+            else:
+                self.grouping_button.get_parent().remove_css_class("linked")
 
         config.sections["transfers"]["group%ss" % self.type] = mode
         self.tree_view.set_show_expanders(active)
@@ -892,7 +879,7 @@ class TransferList:
 
         if data:
             if self.file_properties is None:
-                self.file_properties = FileProperties(self.frame, self.core, download_button=False)
+                self.file_properties = FileProperties(self.frame, download_button=False)
 
             self.file_properties.update_properties(data, total_size=selected_size)
             self.file_properties.show()

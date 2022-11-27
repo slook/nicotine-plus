@@ -29,7 +29,8 @@ from gi.repository import GLib
 from gi.repository import Gtk
 
 from pynicotine.config import config
-from pynicotine.geoip import GeoIP
+from pynicotine.core import core
+from pynicotine.events import events
 from pynicotine.gtkgui.application import GTK_API_VERSION
 from pynicotine.gtkgui.widgets.filechooser import FileChooserSave
 from pynicotine.gtkgui.widgets.iconnotebook import IconNotebook
@@ -49,13 +50,29 @@ from pynicotine.utils import human_speed
 
 class UserInfos(IconNotebook):
 
-    def __init__(self, frame, core):
+    def __init__(self, frame):
 
         super().__init__(
-            frame, core,
+            frame,
             widget=frame.userinfo_notebook,
             parent_page=frame.userinfo_page
         )
+
+        # Events
+        for event_name, callback in (
+            ("peer-connection-closed", self.peer_connection_error),
+            ("peer-connection-error", self.peer_connection_error),
+            ("server-disconnect", self.server_disconnect),
+            ("user-country", self.user_country),
+            ("user-info-progress", self.user_info_progress),
+            ("user-info-remove-user", self.remove_user),
+            ("user-info-response", self.user_info_response),
+            ("user-info-show-user", self.show_user),
+            ("user-interests", self.user_interests),
+            ("user-stats", self.user_stats),
+            ("user-status", self.user_status)
+        ):
+            events.connect(event_name, callback)
 
     def on_get_user_info(self, *_args):
 
@@ -65,9 +82,9 @@ class UserInfos(IconNotebook):
             return
 
         self.frame.userinfo_entry.set_text("")
-        self.core.userinfo.request_user_info(username)
+        core.userinfo.show_user(username)
 
-    def show_user(self, user, switch_page=True):
+    def show_user(self, user, switch_page=True, **_unused):
 
         if user not in self.pages:
             self.pages[user] = page = UserInfo(self, user)
@@ -90,45 +107,60 @@ class UserInfos(IconNotebook):
         self.remove_page(page.container)
         del self.pages[user]
 
-    def show_connection_error(self, user):
-        if user in self.pages:
-            self.pages[user].show_connection_error()
+    def peer_connection_error(self, msg):
 
-    def peer_message_progress(self, msg):
-        if msg.user in self.pages:
-            self.pages[msg.user].peer_message_progress(msg)
+        page = self.pages.get(msg.user)
 
-    def peer_connection_closed(self, msg):
-        if msg.user in self.pages:
-            self.pages[msg.user].peer_connection_closed()
+        if page is not None:
+            page.peer_connection_error()
 
-    def get_user_stats(self, msg):
-        if msg.user in self.pages:
-            self.pages[msg.user].get_user_stats(msg)
+    def user_stats(self, msg):
 
-    def get_user_status(self, msg):
+        page = self.pages.get(msg.user)
 
-        if msg.user in self.pages:
-            page = self.pages[msg.user]
+        if page is not None:
+            page.user_stats(msg)
+
+    def user_status(self, msg):
+
+        page = self.pages.get(msg.user)
+
+        if page is not None:
             self.set_user_status(page.container, msg.user, msg.status)
 
-    def set_user_country(self, user, country_code):
-        if user in self.pages:
-            self.pages[user].set_user_country(country_code)
+    def user_country(self, user, country_code):
+
+        page = self.pages.get(user)
+
+        if page is not None:
+            page.user_country(country_code)
 
     def user_interests(self, msg):
-        if msg.user in self.pages:
-            self.pages[msg.user].user_interests(msg)
 
-    def user_info_reply(self, user, msg):
-        if user in self.pages:
-            self.pages[user].user_info_reply(msg)
+        page = self.pages.get(msg.user)
+
+        if page is not None:
+            page.user_interests(msg)
+
+    def user_info_progress(self, msg):
+
+        page = self.pages.get(msg.user)
+
+        if page is not None:
+            page.user_info_progress(msg)
+
+    def user_info_response(self, msg):
+
+        page = self.pages.get(msg.init.target_user)
+
+        if page is not None:
+            page.user_info_response(msg)
 
     def update_visuals(self):
         for page in self.pages.values():
             page.update_visuals()
 
-    def server_disconnect(self):
+    def server_disconnect(self, _msg):
         for user, page in self.pages.items():
             self.set_user_status(page.container, user, UserStatus.OFFLINE)
 
@@ -164,7 +196,6 @@ class UserInfo:
 
         self.userinfos = userinfos
         self.frame = userinfos.frame
-        self.core = userinfos.core
 
         self.info_bar = InfoBar(self.info_bar, button=self.retry_button)
         self.description_view = TextView(self.description_view)
@@ -352,7 +383,10 @@ class UserInfo:
         picture_zoomed = self.picture_data_scaled.scale_simple(width, height, GdkPixbuf.InterpType.NEAREST)
         self.set_pixbuf(picture_zoomed)
 
-    def show_connection_error(self):
+    def peer_connection_error(self):
+
+        if self.refresh_button.get_sensitive():
+            return
 
         self.info_bar.show_message(
             _("Unable to request information from user. Either you both have a closed listening "
@@ -390,7 +424,7 @@ class UserInfo:
         self.info_bar.set_visible(False)
         self.refresh_button.set_sensitive(False)
 
-    def peer_message_progress(self, msg):
+    def user_info_progress(self, msg):
 
         self.indeterminate_progress = False
 
@@ -403,13 +437,9 @@ class UserInfo:
 
         self.progress_bar.set_fraction(fraction)
 
-    def peer_connection_closed(self):
-        if not self.refresh_button.get_sensitive():
-            self.show_connection_error()
-
     """ Network Messages """
 
-    def user_info_reply(self, msg):
+    def user_info_response(self, msg):
 
         if msg is None:
             return
@@ -428,7 +458,7 @@ class UserInfo:
         self.info_bar.set_visible(False)
         self.set_finished()
 
-    def get_user_stats(self, msg):
+    def user_stats(self, msg):
 
         if msg.avgspeed > 0:
             self.upload_speed_label.set_text(human_speed(msg.avgspeed))
@@ -436,12 +466,12 @@ class UserInfo:
         self.shared_files_label.set_text(humanize(msg.files))
         self.shared_folders_label.set_text(humanize(msg.dirs))
 
-    def set_user_country(self, country_code):
+    def user_country(self, country_code):
 
         if not country_code:
             return
 
-        country = GeoIP.country_code_to_name(country_code)
+        country = core.geoip.country_code_to_name(country_code)
         country_text = "%s (%s)" % (country, country_code)
 
         self.country_label.set_text(country_text)
@@ -474,27 +504,27 @@ class UserInfo:
         self.frame.interests.toggle_menu_items(menu, self.dislikes_list_view, column=0)
 
     def on_send_message(self, *_args):
-        self.core.privatechat.show_user(self.user)
+        core.privatechat.show_user(self.user)
 
     def on_show_ip_address(self, *_args):
-        self.core.request_ip_address(self.user)
+        core.request_ip_address(self.user)
 
     def on_browse_user(self, *_args):
-        self.core.userbrowse.browse_user(self.user)
+        core.userbrowse.browse_user(self.user)
 
     def on_add_to_list(self, *_args):
-        self.core.userlist.add_user(self.user)
+        core.userlist.add_buddy(self.user)
 
     def on_ban_user(self, *_args):
-        self.core.network_filter.ban_user(self.user)
+        core.network_filter.ban_user(self.user)
 
     def on_ignore_user(self, *_args):
-        self.core.network_filter.ignore_user(self.user)
+        core.network_filter.ignore_user(self.user)
 
     def on_save_picture_response(self, file_path, *_args):
         _success, picture_bytes = self.picture_data_original.save_to_bufferv(
             type="png", option_keys=[], option_values=[])
-        self.core.userinfo.save_user_picture(file_path, picture_bytes)
+        core.userinfo.save_user_picture(file_path, picture_bytes)
 
     def on_save_picture(self, *_args):
 
@@ -532,13 +562,13 @@ class UserInfo:
 
     def on_refresh(self, *_args):
         self.set_in_progress()
-        self.core.userinfo.request_user_info(self.user)
+        core.userinfo.show_user(self.user, refresh=True)
 
     def on_focus(self, *_args):
         self.description_view.textview.grab_focus()
 
     def on_close(self, *_args):
-        self.core.userinfo.remove_user(self.user)
+        core.userinfo.remove_user(self.user)
 
     def on_close_all_tabs(self, *_args):
         self.userinfos.remove_all_pages()

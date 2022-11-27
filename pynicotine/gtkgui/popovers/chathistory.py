@@ -23,6 +23,7 @@ import time
 from collections import deque
 
 from pynicotine.config import config
+from pynicotine.core import core
 from pynicotine.gtkgui.application import GTK_API_VERSION
 from pynicotine.gtkgui.widgets.accelerator import Accelerator
 from pynicotine.gtkgui.widgets.popover import Popover
@@ -35,7 +36,7 @@ from pynicotine.utils import encode_path
 
 class ChatHistory(Popover):
 
-    def __init__(self, frame, core):
+    def __init__(self, frame):
 
         ui_template = UserInterface(scope=self, path="popovers/chathistory.ui")
         (
@@ -52,10 +53,9 @@ class ChatHistory(Popover):
         )
 
         self.frame = frame
-        self.core = core
 
         self.list_view = TreeView(
-            frame, parent=self.list_container, activate_row_callback=self.on_row_activated,
+            frame, parent=self.list_container, activate_row_callback=self.on_show_user,
             columns=[
                 {"column_id": "user", "column_type": "text", "title": _("User"), "width": 175,
                  "sort_column": 0},
@@ -73,31 +73,76 @@ class ChatHistory(Popover):
         frame.private_history_button.set_popover(self.popover)
         self.load_users()
 
+    def load_user(self, file_path):
+        """ Reads the username and latest message from a given log file path. Usernames are
+        first extracted from the file name. In case the extracted username contains underscores,
+        attempt to fetch the original username from logged messages, since illegal filename
+        characters are substituted with underscores. """
+
+        username = os.path.basename(file_path[:-4]).decode("utf-8", "replace")
+        is_safe_username = ("_" not in username)
+        login_username = config.sections["server"]["login"]
+
+        read_num_lines = 1 if is_safe_username else 25
+        latest_message = None
+
+        with open(file_path, "rb") as lines:
+            lines = deque(lines, read_num_lines)
+
+            for line in lines:
+                try:
+                    line = line.decode("utf-8")
+
+                except UnicodeDecodeError:
+                    line = line.decode("latin-1")
+
+                if latest_message is None:
+                    latest_message = line
+
+                    if is_safe_username:
+                        break
+
+                    username_chars = set(username.replace("_", ""))
+
+                if login_username in line:
+                    continue
+
+                if " [" not in line or "] " not in line:
+                    continue
+
+                start = line.find(" [") + 2
+                end = line.find("] ", start)
+                line_username_len = (end - start)
+
+                if len(username) != line_username_len:
+                    continue
+
+                line_username = line[start:end]
+
+                if username == line_username:
+                    # Nothing to do, username is already correct
+                    break
+
+                if username_chars.issubset(line_username):
+                    username = line_username
+                    break
+
+        return username, latest_message
+
     def load_users(self):
 
         log_path = os.path.join(config.sections["logging"]["privatelogsdir"], "*.log")
         user_logs = sorted(glob.glob(encode_path(log_path)), key=os.path.getmtime)
 
         for file_path in user_logs:
-            username = os.path.basename(file_path[:-4]).decode("utf-8", "replace")
-
             try:
-                with open(file_path, "rb") as lines:
-                    lines = deque(lines, 1)
+                username, latest_message = self.load_user(file_path)
 
-                    if not lines:
-                        continue
-
-                    try:
-                        line = lines[0].decode("utf-8")
-
-                    except UnicodeDecodeError:
-                        line = lines[0].decode("latin-1")
-
-                self.update_user(username, line.strip())
+                if latest_message is not None:
+                    self.update_user(username, latest_message.strip())
 
             except OSError:
-                pass
+                continue
 
     def remove_user(self, username):
 
@@ -120,11 +165,14 @@ class ChatHistory(Popover):
         for widget in self.__dict__.values():
             update_widget_visuals(widget)
 
-    def on_row_activated(self, list_view, iterator):
-        username = list_view.get_row_value(iterator, 0)
+    def on_show_user(self, *_args):
 
-        self.core.privatechat.show_user(username)
-        self.popover.hide()
+        for iterator in self.list_view.get_selected_rows():
+            username = self.list_view.get_row_value(iterator, 0)
+
+            core.privatechat.show_user(username)
+            self.popover.hide()
+            return
 
     def on_search_accelerator(self, *_args):
         """ Ctrl+F: Search users """

@@ -17,6 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from pynicotine.config import config
+from pynicotine.core import core
+from pynicotine.events import events
 from pynicotine.gtkgui.widgets.accelerator import Accelerator
 from pynicotine.gtkgui.widgets.dialogs import Dialog
 from pynicotine.gtkgui.widgets.dialogs import EntryDialog
@@ -29,9 +31,8 @@ from pynicotine.gtkgui.widgets.ui import UserInterface
 
 class WishList(Dialog):
 
-    def __init__(self, frame, core, searches):
+    def __init__(self, frame, searches):
 
-        self.core = core
         self.searches = searches
 
         ui_template = UserInterface(scope=self, path="dialogs/wishlist.ui")
@@ -69,6 +70,12 @@ class WishList(Dialog):
         Accelerator("Delete", self.list_view.widget, self.on_remove_wish)
         Accelerator("<Shift>Tab", self.list_view.widget, self.on_list_focus_entry_accelerator)  # skip column header
 
+        for event_name, callback in (
+            ("add-wish", self.add_wish),
+            ("remove-wish", self.remove_wish)
+        ):
+            events.connect(event_name, callback)
+
     def on_list_focus_entry_accelerator(self, *_args):
         self.wish_entry.grab_focus()
         return True
@@ -83,7 +90,7 @@ class WishList(Dialog):
         wish_exists = (wish in self.list_view.iterators)
         self.wish_entry.set_text("")
 
-        self.core.search.add_wish(wish)
+        core.search.add_wish(wish)
 
         if not wish_exists:
             return
@@ -97,8 +104,8 @@ class WishList(Dialog):
         if not wish:
             return
 
-        self.core.search.remove_wish(old_wish)
-        self.core.search.add_wish(wish)
+        core.search.remove_wish(old_wish)
+        core.search.add_wish(wish)
         self.select_wish(wish)
 
     def on_edit_wish(self, *_args):
@@ -107,7 +114,7 @@ class WishList(Dialog):
             old_wish = self.list_view.get_row_value(iterator, 0)
 
             EntryDialog(
-                parent=self.dialog,
+                parent=self.window,
                 title=_("Edit Wish"),
                 message=_("Enter new value for wish '%s':") % old_wish,
                 default=old_wish,
@@ -120,7 +127,7 @@ class WishList(Dialog):
 
         for iterator in reversed(self.list_view.get_selected_rows()):
             wish = self.list_view.get_row_value(iterator, 0)
-            self.core.search.remove_wish(wish)
+            core.search.remove_wish(wish)
 
         self.wish_entry.grab_focus()
         return True
@@ -129,14 +136,14 @@ class WishList(Dialog):
 
         if response_id == 2:
             for wish in self.list_view.iterators.copy():
-                self.core.search.remove_wish(wish)
+                core.search.remove_wish(wish)
 
         self.wish_entry.grab_focus()
 
     def on_clear_wishlist(self, *_args):
 
         OptionDialog(
-            parent=self.dialog,
+            parent=self.window,
             title=_('Clear Wishlist?'),
             message=_('Do you really want to clear your wishlist?'),
             callback=self.clear_wishlist_response
@@ -164,10 +171,6 @@ class WishList(Dialog):
 
         if iterator is not None:
             self.list_view.select_row(iterator)
-
-    def set_interval(self, msg):
-        # Not used
-        pass
 
     def update_wish_button(self, wish):
 

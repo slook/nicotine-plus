@@ -20,36 +20,35 @@
 
 import os
 
-from gi.repository import Gtk
-
 from pynicotine.config import config
+from pynicotine.core import core
 from pynicotine.gtkgui.widgets.filechooser import FileChooserButton
 from pynicotine.gtkgui.widgets.filechooser import FolderChooser
 from pynicotine.gtkgui.widgets.dialogs import Dialog
 from pynicotine.gtkgui.widgets.dialogs import EntryDialog
 from pynicotine.gtkgui.widgets.treeview import TreeView
 from pynicotine.gtkgui.widgets.ui import UserInterface
-from pynicotine.utils import open_uri
 
 
 class FastConfigure(Dialog):
 
-    def __init__(self, frame, core):
+    def __init__(self, frame):
 
-        self.core = core
         self.rescan_required = False
         self.finished = False
 
         ui_template = UserInterface(scope=self, path="dialogs/fastconfigure.ui")
         (
             self.account_page,
-            self.check_port_label,
             self.download_folder_button,
+            self.first_port_entry,
+            self.last_port_entry,
             self.main_icon,
             self.next_button,
             self.password_entry,
             self.port_page,
             self.previous_button,
+            self.set_up_button,
             self.share_page,
             self.shares_list_container,
             self.stack,
@@ -63,9 +62,9 @@ class FastConfigure(Dialog):
         super().__init__(
             parent=frame.window,
             content_box=self.stack,
-            buttons=[(self.previous_button, Gtk.ResponseType.HELP),
-                     (self.next_button, Gtk.ResponseType.APPLY)],
-            default_response=Gtk.ResponseType.APPLY,
+            buttons_start=(self.previous_button,),
+            buttons_end=(self.next_button,),
+            default_button=self.next_button,
             show_callback=self.on_show,
             close_callback=self.on_close,
             width=720,
@@ -78,7 +77,7 @@ class FastConfigure(Dialog):
 
         # Page specific, share_page
         self.download_folder_button = FileChooserButton(
-            self.download_folder_button, self.dialog, "folder", selected_function=self.on_download_folder_selected)
+            self.download_folder_button, self.window, "folder", selected_function=self.on_download_folder_selected)
 
         self.shares_list_view = TreeView(
             frame, parent=self.shares_list_container, multi_select=True, activate_row_callback=self.on_edit_share,
@@ -149,10 +148,10 @@ class FastConfigure(Dialog):
     def on_add_share(self, *_args):
 
         FolderChooser(
-            parent=self.dialog,
+            parent=self.window,
             title=_("Add a Shared Folder"),
             callback=self.on_add_share_selected,
-            multiple=True
+            select_multiple=True
         ).show()
 
     def on_edit_share_response(self, dialog, _response_id, iterator):
@@ -165,7 +164,7 @@ class FastConfigure(Dialog):
         shared = config.sections["transfers"]["shared"]
         buddy_shared = config.sections["transfers"]["buddyshared"]
 
-        virtual = self.core.shares.get_normalized_virtual_name(virtual, shared_folders=(shared + buddy_shared))
+        virtual = core.shares.get_normalized_virtual_name(virtual, shared_folders=(shared + buddy_shared))
         folder = self.shares_list_view.get_row_value(iterator, 1)
         old_virtual = self.shares_list_view.get_row_value(iterator, 0)
         old_mapping = (old_virtual, folder)
@@ -184,7 +183,7 @@ class FastConfigure(Dialog):
             folder = self.shares_list_view.get_row_value(iterator, 1)
 
             EntryDialog(
-                parent=self.dialog,
+                parent=self.window,
                 title=_("Edit Shared Folder"),
                 message=_("Enter new virtual name for '%(dir)s':") % {'dir': folder},
                 default=virtual_name,
@@ -207,7 +206,10 @@ class FastConfigure(Dialog):
 
         page = self.stack.get_visible_child()
 
-        if page == self.account_page:
+        if page == self.welcome_page:
+            self.set_up_button.grab_focus()
+
+        elif page == self.account_page:
             self.username_entry.grab_focus()
 
         self.reset_completeness()
@@ -239,23 +241,31 @@ class FastConfigure(Dialog):
     def on_close(self, *_args):
 
         if self.rescan_required:
-            self.core.shares.rescan_shares()
+            core.shares.rescan_shares()
 
         if not self.finished:
             return True
+
+        # port_page
+        first_port = min(self.first_port_entry.get_value_as_int(), self.last_port_entry.get_value_as_int())
+        last_port = max(self.first_port_entry.get_value_as_int(), self.last_port_entry.get_value_as_int())
+        config.sections["server"]["portrange"] = (first_port, last_port)
 
         # account_page
         if config.need_config():
             config.sections["server"]["login"] = self.username_entry.get_text()
             config.sections["server"]["passw"] = self.password_entry.get_text()
 
-        self.core.connect()
+        core.connect()
         return True
 
     def on_show(self, *_args):
 
         self.rescan_required = False
         self.stack.set_visible_child(self.welcome_page)
+
+        # welcome_page
+        self.set_up_button.grab_focus()
 
         # account_page
         self.account_page.set_visible(config.need_config())
@@ -264,10 +274,9 @@ class FastConfigure(Dialog):
         self.password_entry.set_text(config.sections["server"]["passw"])
 
         # port_page
-        url = config.portchecker_url % str(self.core.protothread.listenport)
-        text = "<a href='" + url + "' title='" + url + "'>" + _("Check Port Status") + "</a>"
-        self.check_port_label.set_markup(text)
-        self.check_port_label.connect("activate-link", lambda x, url: open_uri(url))
+        first_port, last_port = config.sections["server"]["portrange"]
+        self.first_port_entry.set_value(first_port)
+        self.last_port_entry.set_value(last_port)
 
         # share_page
         if config.sections['transfers']['downloaddir']:

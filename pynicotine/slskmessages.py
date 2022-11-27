@@ -110,6 +110,12 @@ class InternalMessage:
     msgtype = MessageType.INTERNAL
 
 
+class SchedulerCallback(InternalMessage):
+
+    def __init__(self, callback=None):
+        self.callback = callback
+
+
 class CLICommand(InternalMessage):
 
     def __init__(self, command=None, args=None):
@@ -132,11 +138,14 @@ class CloseConnectionIP(InternalMessage):
 
 
 class ServerConnect(InternalMessage):
-    """ NicotineCore sends this to make networking thread establish a server connection. """
+    """ Core sends this to make networking thread establish a server connection. """
 
-    def __init__(self, addr=None, login=None):
+    def __init__(self, addr=None, login=None, interface=None, bound_ip=None, listen_port_range=None):
         self.addr = addr
         self.login = login
+        self.interface = interface
+        self.bound_ip = bound_ip
+        self.listen_port_range = listen_port_range
 
 
 class ServerDisconnect(InternalMessage):
@@ -165,7 +174,7 @@ class SendNetworkMessage(InternalMessage):
         self.message = message
 
 
-class ShowConnectionErrorMessage(InternalMessage):
+class PeerConnectionError(InternalMessage):
 
     def __init__(self, user=None, msgs=None, offline=False):
         self.user = user
@@ -173,16 +182,19 @@ class ShowConnectionErrorMessage(InternalMessage):
         self.offline = offline
 
 
-class PeerMessageProgress(InternalMessage):
+class UserInfoProgress(InternalMessage):
     """ Used to indicate progress of long transfers. """
 
     __slots__ = ("user", "msg_type", "position", "total")
 
-    def __init__(self, user=None, msg_type=None, position=None, total=None):
+    def __init__(self, user=None, position=None, total=None):
         self.user = user
-        self.msg_type = msg_type
         self.position = position
         self.total = total
+
+
+class SharedFileListProgress(UserInfoProgress):
+    pass
 
 
 class PeerConnectionClosed(InternalMessage):
@@ -191,36 +203,6 @@ class PeerConnectionClosed(InternalMessage):
 
     def __init__(self, user=None):
         self.user = user
-
-
-class TransferTimeout(InternalMessage):
-
-    __slots__ = ("transfer",)
-
-    def __init__(self, transfer):
-        self.transfer = transfer
-
-
-class CheckDownloadQueue(InternalMessage):
-    """ Sent from a timer to the main thread to indicate that stuck downloads
-    should be checked. """
-
-
-class CheckUploadQueue(InternalMessage):
-    """ Sent from a timer to the main thread to indicate that the upload queue
-    should be checked. """
-
-
-class RetryDownloadLimits(InternalMessage):
-    pass
-
-
-class RetryFailedUploads(InternalMessage):
-    pass
-
-
-class SaveTransfers(InternalMessage):
-    pass
 
 
 class DownloadFile(InternalMessage):
@@ -1172,7 +1154,7 @@ class PlaceInLineResponse(ServerMessage):
     """ Server code: 60 """
     """ The server sends this to indicate change in place in queue while we're
     waiting for files from another peer. """
-    """ OBSOLETE, use PlaceInQueue peer message """
+    """ OBSOLETE, use PlaceInQueueResponse peer message """
 
     def __init__(self, user=None, token=None, place=None):
         self.token = token
@@ -2300,7 +2282,7 @@ class PeerMessage(SlskMessage):
         return pos, size
 
 
-class GetSharedFileList(PeerMessage):
+class SharedFileListRequest(PeerMessage):
     """ Peer code: 4 """
     """ We send this to a peer to ask for a list of shared files. """
 
@@ -2315,13 +2297,14 @@ class GetSharedFileList(PeerMessage):
         pass
 
 
-class SharedFileList(PeerMessage):
+class SharedFileListResponse(PeerMessage):
     """ Peer code: 5 """
     """ A peer responds with a list of shared files when we've sent
-    a GetSharedFileList. """
+    a SharedFileListRequest. """
 
-    def __init__(self, init=None, shares=None):
+    def __init__(self, init=None, user=None, shares=None):
         self.init = init
+        self.user = user
         self.list = shares
         self.unknown = 0
         self.privatelist = []
@@ -2438,7 +2421,7 @@ class FileSearchRequest(PeerMessage):
         pos, self.searchterm = self.unpack_string(message, pos)
 
 
-class FileSearchResult(PeerMessage):
+class FileSearchResponse(PeerMessage):
     """ Peer code: 9 """
     """ A peer sends this message when it has a file search match. The token is
     taken from original FileSearch, UserSearch or RoomSearch server message. """
@@ -2588,7 +2571,7 @@ class UserInfoRequest(PeerMessage):
         pass
 
 
-class UserInfoReply(PeerMessage):
+class UserInfoResponse(PeerMessage):
     """ Peer code: 16 """
     """ A peer responds with this after we've sent a UserInfoRequest. """
 
@@ -2641,7 +2624,7 @@ class PMessageUser(PeerMessage):
     """ Peer code: 22 """
     """ Chat phrase sent to someone or received by us in private.
     This is a Nicotine+ extension to the Soulseek protocol. """
-    """ DEPRECATED """
+    """ OBSOLETE """
 
     def __init__(self, init=None, user=None, msg=None):
         self.init = init
@@ -2759,7 +2742,7 @@ class TransferRequest(PeerMessage):
     A TransferResponse message is expected from the recipient, either allowing or
     rejecting the upload attempt.
 
-    This message was formely used to send a download request (direction 0) as well,
+    This message was formerly used to send a download request (direction 0) as well,
     but Nicotine+, Museek+ and the official clients use the QueueUpload message for
     this purpose today. """
 
@@ -2860,7 +2843,7 @@ class QueueUpload(PeerMessage):
         _pos, self.file = self.unpack_string(message)
 
 
-class PlaceInQueue(PeerMessage):
+class PlaceInQueueResponse(PeerMessage):
     """ Peer code: 44 """
     """ The peer replies with the upload queue placement of the requested file. """
 
@@ -3231,20 +3214,20 @@ PEER_INIT_MESSAGE_CODES = {
 }
 
 PEER_MESSAGE_CODES = {
-    GetSharedFileList: 4,
-    SharedFileList: 5,
+    SharedFileListRequest: 4,
+    SharedFileListResponse: 5,
     FileSearchRequest: 8,         # Obsolete
-    FileSearchResult: 9,
+    FileSearchResponse: 9,
     UserInfoRequest: 15,
-    UserInfoReply: 16,
-    PMessageUser: 22,             # Deprecated
+    UserInfoResponse: 16,
+    PMessageUser: 22,             # Obsolete
     FolderContentsRequest: 36,
     FolderContentsResponse: 37,
     TransferRequest: 40,
     TransferResponse: 41,
     PlaceholdUpload: 42,          # Obsolete
     QueueUpload: 43,
-    PlaceInQueue: 44,
+    PlaceInQueueResponse: 44,
     UploadFailed: 46,
     UploadDenied: 50,
     PlaceInQueueRequest: 51,

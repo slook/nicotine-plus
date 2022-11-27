@@ -1,4 +1,4 @@
-# COPYRIGHT (C) 2022 Nicotine+ Team
+# COPYRIGHT (C) 2022 Nicotine+ Contributors
 #
 # GNU GENERAL PUBLIC LICENSE
 #    Version 3, 29 June 2007
@@ -25,297 +25,226 @@ class Plugin(BasePlugin):
 
         super().__init__(*args, **kwargs)
 
-        commands = {
+        self.commands = {
             "help": {
+                "aliases": ["?"],
                 "callback": self.help_command,
                 "description": "List commands",
-                "usage": ["[query]"],
-                "aliases": ["?"]
+                "usage": ["[query]"]
             },
             "rescan": {
                 "callback": self.rescan_command,
                 "description": _("Rescan shares"),
-                "usage": ["[-force]", ""],
-                "group": _("Shares")
+                "group": _("Shares"),
+                "usage": ["[-force]", ""]
             },
             "hello": {
+                "aliases": ["echo", "greet"],
                 "callback": self.hello_command,
                 "description": "Print something",
-                "usage": ["[something..]"],
-                "aliases": ["echo", "greet"],
-                "group": _("Message")
+                "group": _("Message"),
+                "usage": ["[something..]"]
             },
             "away": {
+                "aliases": ["a"],
                 "callback": self.away_command,
-                "description": _("Toggle away status"),
-                "aliases": ["a"]
+                "description": _("Toggle away status")
             },
             "quit": {
+                "aliases": ["q", "exit"],
                 "callback": self.quit_command,
                 "description": _("Quit Nicotine+"),
-                "usage": ["[-force]", ""],  # "" disallow extra args
-                "aliases": ["q", "exit"]
+                "usage": ["[-force]", ""]  # "" disallow extra args
             },
-            "add": {
-                "callback": self.add_buddy_command,
-                "description": _("Add user to buddy list"),
-                "usage": ["<user>"],
-                "aliases": ["buddy"],
-                "group": _("Users")
-            },
-            "rem": {
-                "callback": self.remove_buddy_command,
-                "description": _("Remove user from buddy list"),
-                "usage": ["<buddy>"],
-                "aliases": ["unbuddy"],
-                "group": _("Users")
-            },
-            "ban": {
-                "callback": self.ban_user_command,
-                "description": _("Stop connections from user"),
-                "usage": ["<user>"],
-                "group": _("Users")
-            },
-            "unban": {
-                "callback": self.unban_user_command,
-                "description": _("Remove user from ban list"),
-                "usage": ["<user>"],
-                "group": _("Users")
-            },
-            "block": {  # new
-                "callback": self.block_user_ip_command,
-                "description": _("Stop all connections from same IP as user"),
-                "usage": ["<user>"],
-                "group": _("Network Filters")
-            },
-            "unblock": {  # new
-                "callback": self.unblock_user_ip_command,
-                "description": _("Remove user's IP address from block list"),
-                "usage": ["<user>"],
-                "group": _("Network Filters")
-            },
-            "ip": {
-                "callback": self.ip_user_command,
-                "description": _("Show IP address of user"),
-                "usage": ["<user>"],
-                "group": _("Network Filters")
-            }
-        }
 
-        chat_commands = {
             "clear": {
+                "aliases": ["cl"],
                 "callback": self.clear_command,
                 "description": _("Clear chat window"),
-                "usage": [""],  # "" disallow any args
-                "aliases": ["cl"],
-                "group": _("Chat")
+                "disable": ["cli"],
+                "group": _("Chat"),
+                "usage": [""]  # "" disallow any args
             },
             "join": {
+                "aliases": ["j"],
                 "callback": self.join_chat_command,
                 "description": _("Join chat room"),
-                "usage": ["<room>"],
-                "aliases": ["j"],
-                "group": _("Chat Rooms")
+                "disable": ["cli"],
+                "group": _("Chat Rooms"),
+                "usage": ["<room>"]
             },
             "me": {
                 "callback": self.me_chat_command,
                 "description": _("Say something in the third-person"),
-                "usage": ["<something..>"],
-                "group": _("Chat")
+                "disable": ["cli"],
+                "group": _("Chat"),
+                "usage": ["<something..>"]
             },
             "msg": {
+                "aliases": ["m"],
                 "callback": self.msg_chat_command,
                 "description": _("Send private message to user"),
-                "usage": ["<user>", "<message..>"],
-                "aliases": ["m"],
-                "group": _("Private Chat")
+                "disable": ["cli"],
+                "group": _("Private Chat"),
+                "usage": ["<user>", "<message..>"]
             },
             "pm": {
                 "callback": self.pm_chat_command,
                 "description": _("Open private chat window for user"),
+                "disable": ["cli"],
+                "group": _("Private Chat"),
                 "usage": ["<user>"],
-                "group": _("Private Chat")
             },
             "say": {
                 "callback": self.say_chat_command,
                 "description": _("Say message in specified chat room"),
-                "usage": ["<room>", "<message..>"],
-                "group": _("Chat Rooms")
+                "disable": ["cli"],
+                "group": _("Chat Rooms"),
+                "usage": ["<room>", "<message..>"]
             },
+
             "ctcpversion": {
                 "callback": self.ctcpversion_command,
                 "description": _("Ask for a user's client version"),
+                "disable": ["cli"],
+                "group": _("Chat"),
                 "usage": ["[user]"],
             },
-            "ignore": {
-                "callback": self.ignore_user_command,
-                "description": _("Silence chat messages from user"),
-                "usage": ["<user>"],
-                "group": _("Users")
-            },
-            "unignore": {
-                "callback": self.unignore_user_command,
-                "description": _("Remove user from chat ignore list"),
-                "usage": ["<user>"],
-                "group": _("Users")
-            },
-            "ignoreip": {
-                "callback": self.ignore_user_ip_command,
-                "description": _("Silence chat messages from IP address of user"),
-                "usage": ["<user>"],
-                "group": _("Network Filters")
-            },
-            "unignoreip": {  # new
-                "callback": self.unignore_user_ip_command,
-                "description": _("Remove user's IP address from chat ignore list"),
-                "usage": ["<user>"],
-                "group": _("Network Filters")
-            },
+
             "ipignore": {  # new
                 "callback": self.ignore_ip_command,
                 "description": _("Silence chat from anyone at IP address"),
-                "usage": ["<ip_address>"],
-                "group": _("Network Filters")
+                "disable": ["cli"],
+                "group": _("Network Filters"),
+                "usage": ["<ip_address>"]
             },
             "ipunignore": {  # new
                 "callback": self.unignore_ip_command,
                 "description": _("Remove IP address from chat ignore list"),
-                "usage": ["<ip_address>"],
-                "group": _("Network Filters")
+                "disable": ["cli"],
+                "group": _("Network Filters"),
+                "usage": ["<ip_address>"]
             },
-            "whois": {
-                "callback": self.whois_user_command,
-                "description": _("Show info about user"),
-                "usage": ["<user>"],
-                "aliases": ["info"],
-                "group": _("Users")
-            },
-            "browse": {
-                "callback": self.browse_user_command,
-                "description": _("Browse files of user"),
-                "usage": ["<user>"],
-                "aliases": ["b"],
-                "group": _("Users")
-            }
-        }
 
-        chatroom_commands = {
             "close": {
+                "aliases": ["c"],
                 "callback": self.close_command,
                 "description": _("Close private chat"),
-                "usage": ["<user>"],
-                "aliases": ["c"],
-                "group": _("Private Chat")
+                "disable": ["cli"],
+                "group": _("Private Chat"),
+                "usage_chatroom": ["<user>"],
+                "usage_private_chat": ["[user]"]
             },
             "leave": {
+                "aliases": ["l"],
                 "callback": self.leave_command,
                 "description": _("Leave chat room"),
-                "usage": ["[room]"],
-                "aliases": ["l"],
-                "group": _("Chat Rooms")
-            }
-        }
-
-        private_chat_commands = {
-            "close": {
-                "callback": self.close_command,
-                "description": _("Close private chat"),
-                "usage": ["[user]"],
-                "aliases": ["c"],
-                "group": _("Private Chat")
-            },
-            "leave": {
-                "callback": self.leave_command,
-                "description": _("Leave chat room"),
-                "usage": ["<room>"],
-                "aliases": ["l"],
-                "group": _("Chat Rooms")
+                "disable": ["cli"],
+                "group": _("Chat Rooms"),
+                "usage_chatroom": ["[room]"],
+                "usage_private_chat": ["<room>"],
             },
             "add": {
+                "aliases": ["buddy"],
                 "callback": self.add_buddy_command,
                 "description": _("Add user to buddy list"),
-                "usage": ["[user]"],
-                "aliases": ["buddy"],
-                "group": _("Users")
+                "group": _("Users"),
+                "usage": ["<user>"],
+                "usage_private_chat": ["[user]"]
             },
             "rem": {
+                "aliases": ["unbuddy"],
                 "callback": self.remove_buddy_command,
                 "description": _("Remove user from buddy list"),
-                "usage": ["[buddy]"],
-                "aliases": ["unbuddy"],
-                "group": _("Users")
+                "group": _("Users"),
+                "usage_chatroom": ["<buddy>"],
+                "usage_private_chat": ["[buddy]"]
             },
             "ban": {
                 "callback": self.ban_user_command,
                 "description": _("Stop connections from user"),
-                "usage": ["[user]"],
-                "group": _("Users")
+                "group": _("Users"),
+                "usage": ["<user>"],
+                "usage_private_chat": ["[user]"]
             },
             "unban": {
                 "callback": self.unban_user_command,
                 "description": _("Remove user from ban list"),
-                "usage": ["[user]"],
-                "group": _("Users")
+                "group": _("Users"),
+                "usage": ["<user>"],
+                "usage_private_chat": ["[user]"]
             },
             "block": {  # new
                 "callback": self.block_user_ip_command,
                 "description": _("Stop all connections from same IP as user"),
-                "usage": ["[user]"],
-                "group": _("Network Filters")
+                "group": _("Network Filters"),
+                "usage": ["<user>"],
+                "usage_private_chat": ["[user]"]
             },
             "unblock": {  # new
                 "callback": self.unblock_user_ip_command,
                 "description": _("Remove user's IP address from block list"),
-                "usage": ["[user]"],
-                "group": _("Network Filters")
+                "group": _("Network Filters"),
+                "usage": ["<user>"],
+                "usage_private_chat": ["[user]"]
             },
             "ignore": {
                 "callback": self.ignore_user_command,
                 "description": _("Silence chat messages from user"),
-                "usage": ["[user]"],
-                "group": _("Users")
+                "disable": ["cli"],
+                "group": _("Users"),
+                "usage_chatroom": ["<user>"],
+                "usage_private_chat": ["[user]"]
             },
             "unignore": {
                 "callback": self.unignore_user_command,
                 "description": _("Remove user from chat ignore list"),
-                "usage": ["[user]"],
-                "group": _("Users")
+                "disable": ["cli"],
+                "group": _("Users"),
+                "usage_chatroom": ["<user>"],
+                "usage_private_chat": ["[user]"]
             },
             "ignoreip": {
                 "callback": self.ignore_user_ip_command,
                 "description": _("Silence chat messages from IP address of user"),
+                "disable": ["cli"],
                 "usage": ["[user]"],
-                "group": _("Network Filters")
+                "group": _("Network Filters"),
+                "usage_chatroom": ["<user>"],
+                "usage_private_chat": ["[user]"]
             },
             "unignoreip": {  # new
                 "callback": self.unignore_user_ip_command,
                 "description": _("Remove user's IP address from chat ignore list"),
-                "usage": ["[user]"],
-                "group": _("Network Filters")
+                "disable": ["cli"],
+                "group": _("Network Filters"),
+                "usage_chatroom": ["<user>"],
+                "usage_private_chat": ["[user]"]
             },
             "ip": {
                 "callback": self.ip_user_command,
                 "description": _("Show IP address of user"),
-                "usage": ["[user]"],
-                "group": _("Network Filters")
+                "group": _("Network Filters"),
+                "usage": ["<user>"],
+                "usage_private_chat": ["[user]"]
             },
             "whois": {
+                "aliases": ["info"],
                 "callback": self.whois_user_command,
                 "description": _("Show info about user"),
-                "usage": ["[user]"],
-                "aliases": ["info"],
-                "group": _("Users")
+                "group": _("Users"),
+                "usage": ["<user>"],
+                "usage_private_chat": ["[user]"]
             },
             "browse": {
+                "aliases": ["b"],
                 "callback": self.browse_user_command,
                 "description": _("Browse files of user"),
-                "usage": ["[user]"],
-                "aliases": ["b"],
-                "group": _("Users")
-            }
-        }
+                "group": _("Users"),
+                "usage": ["<user>"],
+                "usage_private_chat": ["[user]"]
+            },
 
-        cli_commands = {
             "listshares": {
                 "callback": self.list_shares_command,
                 "description": _("List shares"),
@@ -324,20 +253,16 @@ class Plugin(BasePlugin):
             "addshare": {
                 "callback": self.add_share_command,
                 "description": _("Add share"),
-                "usage": ["<public|private|buddy>", "<\"virtual name\">", "<\"folder path\">", ""],  # "" max 3 args
-                "group": _("Shares")
+                "group": _("Shares"),
+                "usage": ["<public|private|buddy>", "<\"virtual name\">", "<\"folder path\">", ""]  # "" max 3 args
             },
             "removeshare": {
                 "callback": self.remove_share_command,
                 "description": _("Remove share"),
-                "usage": ["<public|private|buddy>", "<\"virtual name\">", ""],  # "" max 2 args (quotes not mandatory)
-                "group": _("Shares")
+                "group": _("Shares"),
+                "usage": ["<public|private|buddy>", "<\"virtual name\">", ""]  # "" max 2 args (quotes not mandatory)
             }
         }
-
-        self.chatroom_commands = {**commands, **chat_commands, **chatroom_commands}
-        self.private_chat_commands = {**commands, **chat_commands, **private_chat_commands}
-        self.cli_commands = {**commands, **cli_commands}
 
     def help_command(self, args, user=None, room=None):
 
@@ -422,19 +347,19 @@ class Plugin(BasePlugin):
             self.core.chatrooms.clear_messages(room)
 
         elif user is not None:
-            self.core.privatechats.clear_messages(user)
+            self.core.privatechat.clear_private_messages(user)
 
     def close_command(self, args, user=None, **_unused):
 
         if args:
             user = args
 
-        if user not in self.core.privatechats.users:
+        if user not in self.core.privatechat.users:
             self.echo_message("Not messaging with user %s" % user)
             return False
 
         self.echo_message("Closing private chat of user %s" % user)
-        self.core.privatechats.remove_user(user)
+        self.core.privatechat.remove_user(user)
         return True
 
     def ctcpversion_command(self, args, user=None, **_unused):
@@ -445,7 +370,7 @@ class Plugin(BasePlugin):
         elif user is None:
             user = self.core.login_username
 
-        if self.send_private(user, self.core.privatechats.CTCP_VERSION, show_ui=False):
+        if self.send_private(user, self.core.privatechat.CTCP_VERSION, show_ui=False):
             return "Asked %s for client version" % user
 
         return False
@@ -482,8 +407,8 @@ class Plugin(BasePlugin):
         return False
 
     def pm_chat_command(self, args, **_unused):
-        self.core.privatechats.show_user(args)
-        self.log("Private chat with user %s" % args)  # don't echo after switch_tab
+        self.core.privatechat.show_user(args)
+        self.log("Private chat with user %s" % args)
 
     def say_chat_command(self, args, **_unused):
 
@@ -497,7 +422,7 @@ class Plugin(BasePlugin):
 
     """ "Shares" """
 
-    def add_share_command(self, args):
+    def add_share_command(self, args, **_unused):
 
         from shlex import split  # support long arguments in quotes, needed here for <"virtual name">
 
@@ -506,14 +431,14 @@ class Plugin(BasePlugin):
 
         self.echo_message(f"nothing here yet, you entered: group='{group}' name='{name}' path='{path}'")
 
-    def remove_share_command(self, args):
+    def remove_share_command(self, args, **_unused):
 
         args_split = args.split(maxsplit=1)
         group, name = args_split[0], args_split[1].strip("\"' ")  # don't require quotes
 
         self.echo_message(f"nothing here yet, you entered: group='{group}' name='{name}'")
 
-    def list_shares_command(self, _args):
+    def list_shares_command(self, _args, **_unused):
         # TODO: self.echo_message(self.core.shares.list_shares())
         self.echo_message("nothing here yet")
 

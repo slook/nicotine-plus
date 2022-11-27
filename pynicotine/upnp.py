@@ -28,16 +28,18 @@ from pynicotine.utils import http_request
 
 MULTICAST_HOST = "239.255.255.250"
 MULTICAST_PORT = 1900
-RESPONSE_TIME_SECONDS = 1  # At least 1 second is sufficient according to UPnP specification
+MULTICAST_TTL = 2         # Should default to 2 according to UPnP specification
+MX_RESPONSE_DELAY = 1     # At least 1 second is sufficient according to UPnP specification
+HTTP_REQUEST_TIMEOUT = 5
+RENEWAL_INTERVAL = 14400  # 4 hours
 
 
-class Router:
-    def __init__(self, wan_ip_type, url_scheme, base_url, root_url, service_type, control_url):
-        self.search_target = wan_ip_type
+class Service:
+    def __init__(self, service_type, url_scheme, base_url, root_url, control_url):
+        self.service_type = service_type
         self.url_scheme = url_scheme
         self.base_url = base_url
         self.root_url = root_url
-        self.service_type = service_type
         self.control_url = control_url
 
 
@@ -66,7 +68,7 @@ class SSDPRequest:
             "HOST": "%s:%s" % (MULTICAST_HOST, MULTICAST_PORT),
             "ST": search_target,
             "MAN": '"ssdp:discover"',
-            "MX": str(RESPONSE_TIME_SECONDS)
+            "MX": str(MX_RESPONSE_DELAY)
         }
 
     def sendto(self, sock, addr):
@@ -89,7 +91,7 @@ class SSDPRequest:
 class SSDP:
 
     @staticmethod
-    def get_router_control_url(url_scheme, base_url, root_url):
+    def get_service_control_url(url_scheme, base_url, root_url):
 
         service_type = None
         control_url = None
@@ -97,7 +99,7 @@ class SSDP:
         try:
             from xml.etree import ElementTree
 
-            response = http_request(url_scheme, base_url, root_url, timeout=2)
+            response = http_request(url_scheme, base_url, root_url, timeout=HTTP_REQUEST_TIMEOUT)
             log.add_debug("UPnP: Device description response from %s://%s%s: %s",
                           (url_scheme, base_url, root_url, response.encode('utf-8')))
 
@@ -122,7 +124,7 @@ class SSDP:
         return service_type, control_url
 
     @staticmethod
-    def add_router(routers, ssdp_response):
+    def add_service(services, locations, ssdp_response):
 
         from urllib.parse import urlsplit
         response_headers = {k.upper(): v for k, v in ssdp_response.headers}
@@ -133,8 +135,15 @@ class SSDP:
             log.add_debug("UPnP: M-SEARCH response did not contain a LOCATION header: %s", ssdp_response.headers)
             return
 
-        url_parts = urlsplit(response_headers["LOCATION"])
-        service_type, control_url = SSDP.get_router_control_url(url_parts.scheme, url_parts.netloc, url_parts.path)
+        location = response_headers["LOCATION"]
+
+        if location in locations:
+            log.add_debug("UPnP: Device location was previously processed, ignoring")
+            return
+
+        locations.add(location)
+        url_parts = urlsplit(location)
+        service_type, control_url = SSDP.get_service_control_url(url_parts.scheme, url_parts.netloc, url_parts.path)
 
         if service_type is None or control_url is None:
             log.add_debug("UPnP: No router with UPnP enabled in device search response, ignoring")
@@ -142,23 +151,26 @@ class SSDP:
 
         log.add_debug("UPnP: Device details: service_type '%s'; control_url '%s'", (service_type, control_url))
 
-        routers.append(
-            Router(wan_ip_type=response_headers['ST'], url_scheme=url_parts.scheme,
-                   base_url=url_parts.netloc, root_url=url_parts.path,
-                   service_type=service_type, control_url=control_url))
+        if service_type in services:
+            log.add_debug("UPnP: Service was previously added, ignoring")
+            return
 
-        log.add_debug("UPnP: Added device to list")
+        services[service_type] = Service(service_type=service_type, url_scheme=url_parts.scheme,
+                                         base_url=url_parts.netloc, root_url=url_parts.path, control_url=control_url)
+
+        log.add_debug("UPnP: Added service to list")
 
     @staticmethod
-    def get_routers(private_ip):
+    def get_services(private_ip):
 
-        log.add_debug("UPnP: Discovering... delay=%s seconds", RESPONSE_TIME_SECONDS)
+        log.add_debug("UPnP: Discovering... delay=%s seconds", MX_RESPONSE_DELAY)
 
         # Create a UDP socket and set its timeout
         with socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM, proto=socket.IPPROTO_UDP) as sock:
-            sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, RESPONSE_TIME_SECONDS)
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(private_ip))
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, MULTICAST_TTL)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            sock.settimeout(RESPONSE_TIME_SECONDS)
+            sock.settimeout(MX_RESPONSE_DELAY + 0.1)  # Larger timeout in case data arrives at the last moment
             sock.bind((private_ip, 0))
 
             # Protocol 1
@@ -185,30 +197,33 @@ class SSDP:
             wan_igd2.sendto(sock, (MULTICAST_HOST, MULTICAST_PORT))
             log.add_debug("UPnP: Sent M-SEARCH IGD request 2")
 
-            routers = []
+            locations = set()
+            services = {}
 
             while True:
                 try:
-                    message = sock.recv(4096)
-                    SSDP.add_router(routers, SSDPResponse(message.decode('utf-8')))
+                    message = sock.recv(65507)  # Maximum size of UDP message
+                    SSDP.add_service(services, locations, SSDPResponse(message.decode('utf-8')))
 
-                except socket.error:
+                except socket.timeout:
                     break
 
-            log.add_debug("UPnP: %s device(s) detected", str(len(routers)))
+            log.add_debug("UPnP: %s service(s) detected", str(len(services)))
 
-        return routers
+        return services
 
 
 class UPnP:
     """ Class that handles UPnP Port Mapping """
 
-    def __init__(self, port):
-        self.port = port
-        self.timer = None
+    def __init__(self):
+
+        self.port = None
+        self.local_ip_address = None
+        self._timer = None
 
     @staticmethod
-    def _request_port_mapping(router, protocol, public_port, private_ip, private_port,
+    def _request_port_mapping(service, protocol, public_port, private_ip, private_port,
                               mapping_description, lease_duration):
         """
         Function that adds a port mapping to the router.
@@ -217,14 +232,14 @@ class UPnP:
 
         from xml.etree import ElementTree
 
-        url = '%s%s' % (router.base_url, router.control_url)
+        url = '%s%s' % (service.base_url, service.control_url)
         log.add_debug("UPnP: Adding port mapping (%s %s/%s, %s) at url '%s'",
-                      (private_ip, private_port, protocol, router.search_target, url))
+                      (private_ip, private_port, protocol, service.service_type, url))
 
         headers = {
-            "Host": router.base_url,
+            "Host": service.base_url,
             "Content-Type": "text/xml; charset=utf-8",
-            "SOAPACTION": '"%s#AddPortMapping"' % router.service_type
+            "SOAPACTION": '"%s#AddPortMapping"' % service.service_type
         }
 
         body = (
@@ -244,7 +259,7 @@ class UPnP:
              + '</u:AddPortMapping>'
              + '</s:Body>'
              + '</s:Envelope>\r\n') %
-            (router.service_type, public_port, protocol, private_port, private_ip,
+            (service.service_type, public_port, protocol, private_port, private_ip,
              mapping_description, lease_duration)
         ).encode('utf-8')
 
@@ -252,8 +267,8 @@ class UPnP:
         log.add_debug("UPnP: Add port mapping request contents: %s", body)
 
         response = http_request(
-            router.url_scheme, router.base_url, router.control_url,
-            request_type="POST", body=body, headers=headers)
+            service.url_scheme, service.base_url, service.control_url,
+            request_type="POST", body=body, headers=headers, timeout=HTTP_REQUEST_TIMEOUT)
 
         xml = ElementTree.fromstring(response)
 
@@ -268,46 +283,18 @@ class UPnP:
         return error_code, error_description
 
     @staticmethod
-    def find_local_ip_address():
+    def _find_service(private_ip):
 
-        # Create a UDP socket
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as local_socket:
+        services = SSDP.get_services(private_ip)
+        service = services.get("urn:schemas-upnp-org:service:WANIPConnection:2")
 
-            # Send a broadcast packet on a local address (doesn't need to be reachable,
-            # but MacOS requires port to be non-zero)
-            local_socket.connect(("10.255.255.255", 1))
+        if not service:
+            service = services.get("urn:schemas-upnp-org:service:WANIPConnection:1")
 
-            # This returns the "primary" IP on the local box, even if that IP is a NAT/private/internal IP
-            ip_address = local_socket.getsockname()[0]
+        if not service:
+            service = services.get("urn:schemas-upnp-org:service:WANPPPConnection:1")
 
-        return ip_address
-
-    @staticmethod
-    def find_router(private_ip):
-
-        routers = SSDP.get_routers(private_ip)
-        router = next((r for r in routers if r.search_target == "urn:schemas-upnp-org:service:WANIPConnection:2"), None)
-
-        if not router:
-            router = next(
-                (r for r in routers if r.search_target == "urn:schemas-upnp-org:service:WANIPConnection:1"), None)
-
-        if not router:
-            router = next(
-                (r for r in routers if r.search_target == "urn:schemas-upnp-org:service:WANPPPConnection:1"), None)
-
-        if not router:
-            router = next(
-                (r for r in routers if r.search_target == "urn:schemas-upnp-org:device:InternetGatewayDevice:2"), None)
-
-        if not router:
-            router = next(
-                (r for r in routers if r.search_target == "urn:schemas-upnp-org:device:InternetGatewayDevice:1"), None)
-
-        if not router:
-            router = next((r for r in routers), None)
-
-        return router
+        return service
 
     def _update_port_mapping(self, lease_duration=86400):
         """
@@ -323,27 +310,24 @@ class UPnP:
         try:
             log.add_debug("UPnP: Creating Port Mapping rule...")
 
-            # Find local IP address
-            local_ip_address = self.find_local_ip_address()
-
             # Find router
-            router = self.find_router(local_ip_address)
+            service = self._find_service(self.local_ip_address)
 
-            if not router:
-                raise RuntimeError(_("UPnP is not available on this network"))
+            if not service:
+                raise RuntimeError(_("No UPnP devices found"))
 
             # Perform the port mapping
             log.add_debug("UPnP: Trying to redirect external WAN port %s TCP => %s port %s TCP", (
                 self.port,
-                local_ip_address,
+                self.local_ip_address,
                 self.port
             ))
 
             error_code, error_description = self._request_port_mapping(
-                router=router,
+                service=service,
                 protocol="TCP",
                 public_port=self.port,
-                private_ip=local_ip_address,
+                private_ip=self.local_ip_address,
                 private_port=self.port,
                 mapping_description="NicotinePlus",
                 lease_duration=lease_duration
@@ -370,7 +354,7 @@ class UPnP:
         log.add(_("UPnP: External port %(external_port)s successfully forwarded to local "
                   "IP address %(ip_address)s port %(local_port)s"), {
             "external_port": self.port,
-            "ip_address": local_ip_address,
+            "ip_address": self.local_ip_address,
             "local_port": self.port
         })
 
@@ -393,13 +377,7 @@ class UPnP:
         The default interval is 4 hours. """
 
         self.cancel_timer()
-        upnp_interval = config.sections["server"]["upnp_interval"]
-
-        if upnp_interval < 1:
-            return
-
-        upnp_interval_seconds = upnp_interval * 60 * 60
-        self.timer = scheduler.add(delay=upnp_interval_seconds, callback=self.add_port_mapping)
+        self._timer = scheduler.add(delay=RENEWAL_INTERVAL, callback=self.add_port_mapping)
 
     def cancel_timer(self):
-        scheduler.cancel(self.timer)
+        scheduler.cancel(self._timer)
