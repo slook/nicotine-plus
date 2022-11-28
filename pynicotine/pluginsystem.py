@@ -660,8 +660,8 @@ class PluginHandler:
 
         from traceback import format_tb
 
-        log.add_debug(_("Plugin %(module)s failed with error %(errortype)s: %(error)s.\n"
-                        "Trace: %(trace)s"), {
+        log.add_debug(("Plugin %(module)s failed with error %(errortype)s: %(error)s.\n"
+                       "Trace: %(trace)s"), {
             'module': plugin_name,
             'errortype': exc_type,
             'error': exc_value,

@@ -161,10 +161,14 @@ class PrivateChat:
         else:
             message = ui_message = self.auto_replace(message)
 
+        if message == "":
+            return False
+
         core.queue.append(slskmessages.MessageUser(user, message))
         core.pluginhandler.outgoing_private_chat_notification(user, message)
 
         events.emit("send-private-message", user, ui_message)
+        return True
 
     def _get_peer_address(self, msg):
         """ Server code: 3 """

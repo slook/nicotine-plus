@@ -114,30 +114,6 @@ class ChatRooms(IconNotebook):
         ):
             events.connect(event_name, callback)
 
-        for event_name, callback in (
-            ("clear-room-messages", self.clear_room_messages),
-            ("echo-room-message", self.echo_room_message),
-            ("join-room", self.join_room),
-            ("private-room-added", self.private_room_added),
-            ("public-room-message", self.public_room_message),
-            ("remove-room", self.remove_room),
-            ("room-completion-list", self.set_completion_list),
-            ("room-list", self.room_list),
-            ("say-chat-room", self.say_chat_room),
-            ("server-login", self.server_login),
-            ("server-disconnect", self.server_disconnect),
-            ("show-room", self.show_room),
-            ("ticker-add", self.ticker_add),
-            ("ticker-remove", self.ticker_remove),
-            ("ticker-set", self.ticker_set),
-            ("user-country", self.user_country),
-            ("user-joined-room", self.user_joined_room),
-            ("user-left-room", self.user_left_room),
-            ("user-stats", self.user_stats),
-            ("user-status", self.user_status)
-        ):
-            events.connect(event_name, callback)
-
         self.update_visuals()
 
     def on_reordered_page(self, notebook, _page, _page_num):

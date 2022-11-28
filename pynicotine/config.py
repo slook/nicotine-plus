@@ -61,7 +61,6 @@ class Config:
 
         self.application_name = "Nicotine+"
         self.application_id = "org.nicotine_plus.Nicotine"
-        self.summary = _("Graphical client for the Soulseek peer-to-peer network")
         self.author = "Nicotine+ Team"
         self.copyright = """© 2004–2022 Nicotine+ Contributors
 © 2003–2004 Nicotine Contributors
@@ -753,6 +752,9 @@ class Config:
                 self.parser.add_section(section)
 
             for option, value in options.items():
+                if value is None:
+                    value = ""
+
                 self.parser.set(section, option, str(value))
 
         # Remove legacy config options

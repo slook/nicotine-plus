@@ -103,7 +103,7 @@ class TabLabel(Gtk.Box):
             self.add(self.close_button)  # pylint: disable=no-member
             self.close_button.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
 
-        self.close_button.set_tooltip_text(_("Close tab"))
+        self.close_button.set_tooltip_text(_("Close Tab"))
         self.close_button.show()
 
         if self.close_callback is not None:
@@ -305,6 +305,9 @@ class IconNotebook:
         self.popup_menu_unread = PopupMenu(self.window.application, connect_events=False)
         self.unread_button.set_menu_model(self.popup_menu_unread.model)
         self.unread_pages = []
+
+    def grab_focus(self):
+        self.widget.grab_focus()
 
     """ Tabs """
 

@@ -31,9 +31,7 @@ from pynicotine.gtkgui.widgets.ui import UserInterface
 
 class WishList(Dialog):
 
-    def __init__(self, frame, searches):
-
-        self.searches = searches
+    def __init__(self, application):
 
         ui_template = UserInterface(scope=self, path="dialogs/wishlist.ui")
         (
@@ -115,7 +113,7 @@ class WishList(Dialog):
             old_wish = self.list_view.get_row_value(iterator, 0)
 
             EntryDialog(
-                parent=self.window,
+                parent=self,
                 title=_("Edit Wish"),
                 message=_("Enter new value for wish '%s':") % old_wish,
                 default=old_wish,
@@ -144,7 +142,7 @@ class WishList(Dialog):
     def on_clear_wishlist(self, *_args):
 
         OptionDialog(
-            parent=self.window,
+            parent=self,
             title=_('Clear Wishlist?'),
             message=_('Do you really want to clear your wishlist?'),
             callback=self.clear_wishlist_response
