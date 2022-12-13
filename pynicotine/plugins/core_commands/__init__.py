@@ -56,7 +56,6 @@ class Plugin(BasePlugin):
                 "description": _("Quit Nicotine+"),
                 "usage": ["[-force]", ""]  # "" disallow extra args
             },
-
             "clear": {
                 "aliases": ["cl"],
                 "callback": self.clear_command,
@@ -243,7 +242,6 @@ class Plugin(BasePlugin):
                 "usage": ["<user>"],
                 "usage_private_chat": ["[user]"]
             },
-
             "listshares": {
                 "callback": self.list_shares_command,
                 "description": _("List shares"),
@@ -336,7 +334,7 @@ class Plugin(BasePlugin):
             output += "\n" + "Start a command using / (forward slash)"
 
         self.echo_message(output)
-        return None
+        return True
 
     """ "Chats" """
 
@@ -370,7 +368,8 @@ class Plugin(BasePlugin):
             user = self.core.login_username
 
         if self.send_private(user, self.core.privatechat.CTCP_VERSION, show_ui=False):
-            return "Asked %s for client version" % user
+            self.echo_message("Asked %s for client version" % user)
+            return True
 
         return False
 
@@ -401,7 +400,8 @@ class Plugin(BasePlugin):
         user, text = args_split[0], args_split[1]
 
         if self.send_private(user, text, show_ui=True, switch_page=False):
-            return "Private message sent to user %s" % user
+            self.echo_message("Private message sent to user %s" % user)
+            return True
 
         return False
 
@@ -415,7 +415,8 @@ class Plugin(BasePlugin):
         room, text = args_split[0], args_split[1]
 
         if self.send_public(room, text):
-            return "Chat message sent to room %s" % room
+            self.echo_message("Chat message sent to room %s" % room)
+            return True
 
         return False
 
@@ -569,6 +570,7 @@ class Plugin(BasePlugin):
             self.core.confirm_quit()
             return
 
+        # TODO: quit only works with force due to no support for prompt in headless core
         self.log("Quitting on %s command %s" % (interface, args))
         self.core.quit()
 
