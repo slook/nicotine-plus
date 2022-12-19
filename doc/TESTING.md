@@ -87,7 +87,7 @@ pip3 uninstall nicotine-plus
 
 ### Git
 
-To run Nicotine+ directly from a local [Git](https://git-scm.com/) folder, ensure the [runtime dependencies](DEPENDENCIES.md) are installed, and run the following:
+To run Nicotine+ directly from a local [Git](https://git-scm.com/) folder, ensure the [runtime dependencies](DEPENDENCIES.md#installing-dependencies) are installed, and run the following:
 
 ```sh
 git clone https://github.com/nicotine-plus/nicotine-plus.git
