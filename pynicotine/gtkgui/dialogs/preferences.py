@@ -62,6 +62,23 @@ from pynicotine.utils import open_uri
 from pynicotine.utils import unescape
 
 
+PAGE_IDS = [
+    ("network", _("Network"), "network-wireless-symbolic"),
+    ("user-interface", _("User Interface"), "view-grid-symbolic"),
+    ("shares", _("Shares"), "folder-symbolic"),
+    ("downloads", _("Downloads"), "document-save-symbolic"),
+    ("uploads", _("Uploads"), "emblem-shared-symbolic"),
+    ("searches", _("Searches"), "system-search-symbolic"),
+    ("user-profile", _("User Profile"), "avatar-default-symbolic"),
+    ("chats", _("Chats"), "insert-text-symbolic"),
+    ("now-playing", _("Now Playing"), "folder-music-symbolic"),
+    ("logging", _("Logging"), "folder-documents-symbolic"),
+    ("banned-users", _("Banned Users"), "action-unavailable-symbolic"),
+    ("ignored-users", _("Ignored Users"), "microphone-sensitivity-muted-symbolic"),
+    ("plugins", _("Plugins"), "list-add-symbolic"),
+    ("url-handlers", _("URL Handlers"), "insert-link-symbolic")]
+
+
 class NetworkPage:
 
     def __init__(self, application):
@@ -270,12 +287,21 @@ class DownloadsPage:
         self.filter_list_view = TreeView(
             application.window, parent=self.filter_list_container, multi_select=True,
             activate_row_callback=self.on_edit_filter,
-            columns=[
-                {"column_id": "filter", "column_type": "text", "title": _("Filter"), "sort_column": 0,
-                 "width": 150, "expand_column": True, "default_sort_column": "ascending"},
-                {"column_id": "escaped", "column_type": "toggle", "title": _("Escaped"), "width": 0,
-                 "sort_column": 1, "toggle_callback": self.on_toggle_escaped}
-            ]
+            columns={
+                "filter": {
+                    "column_type": "text",
+                    "title": _("Filter"),
+                    "width": 150,
+                    "expand_column": True,
+                    "default_sort_column": "ascending"
+                },
+                "escaped": {
+                    "column_type": "toggle",
+                    "title": _("Escaped"),
+                    "width": 0,
+                    "toggle_callback": self.on_toggle_escaped
+                }
+            }
         )
 
         self.options = {
@@ -328,7 +354,7 @@ class DownloadsPage:
         download_filters = []
 
         for dfilter, iterator in self.filter_list_view.iterators.items():
-            escaped = self.filter_list_view.get_row_value(iterator, 1)
+            escaped = self.filter_list_view.get_row_value(iterator, "escaped")
             download_filters.append([dfilter, int(escaped)])
 
         download_filters.sort()
@@ -356,8 +382,8 @@ class DownloadsPage:
 
     def on_toggle_escaped(self, list_view, iterator):
 
-        value = list_view.get_row_value(iterator, 1)
-        list_view.set_row_value(iterator, 1, not value)
+        value = list_view.get_row_value(iterator, "escaped")
+        list_view.set_row_value(iterator, "escaped", not value)
 
         self.on_verify_filter()
 
@@ -369,8 +395,8 @@ class DownloadsPage:
         iterator = self.filter_list_view.iterators.get(dfilter)
 
         if iterator is not None:
-            self.filter_list_view.set_row_value(iterator, 0, dfilter)
-            self.filter_list_view.set_row_value(iterator, 1, escaped)
+            self.filter_list_view.set_row_value(iterator, "filter", dfilter)
+            self.filter_list_view.set_row_value(iterator, "escaped", escaped)
         else:
             self.filter_list_view.add_row([dfilter, escaped])
 
@@ -394,8 +420,8 @@ class DownloadsPage:
         escaped = dialog.get_option_value()
 
         if new_dfilter in self.filter_list_view.iterators:
-            self.filter_list_view.set_row_value(iterator, 0, new_dfilter)
-            self.filter_list_view.set_row_value(iterator, 1, escaped)
+            self.filter_list_view.set_row_value(iterator, "filter", new_dfilter)
+            self.filter_list_view.set_row_value(iterator, "escaped", escaped)
         else:
             self.filter_list_view.remove_row(iterator)
             self.filter_list_view.add_row([new_dfilter, escaped])
@@ -405,8 +431,8 @@ class DownloadsPage:
     def on_edit_filter(self, *_args):
 
         for iterator in self.filter_list_view.get_selected_rows():
-            dfilter = self.filter_list_view.get_row_value(iterator, 0)
-            escaped = self.filter_list_view.get_row_value(iterator, 1)
+            dfilter = self.filter_list_view.get_row_value(iterator, "filter")
+            escaped = self.filter_list_view.get_row_value(iterator, "escaped")
 
             EntryDialog(
                 parent=self.application.preferences,
@@ -442,8 +468,8 @@ class DownloadsPage:
         outfilter = "(\\\\("
 
         for dfilter, iterator in self.filter_list_view.iterators.items():
-            dfilter = self.filter_list_view.get_row_value(iterator, 0)
-            escaped = self.filter_list_view.get_row_value(iterator, 1)
+            dfilter = self.filter_list_view.get_row_value(iterator, "filter")
+            escaped = self.filter_list_view.get_row_value(iterator, "escaped")
 
             if escaped:
                 dfilter = re.escape(dfilter)
@@ -507,14 +533,27 @@ class SharesPage:
         self.shares_list_view = TreeView(
             application.window, parent=self.shares_list_container, multi_select=True,
             activate_row_callback=self.on_edit_shared_folder,
-            columns=[
-                {"column_id": "virtual_folder", "column_type": "text", "title": _("Virtual Folder"), "width": 65,
-                 "sort_column": 0, "expand_column": True, "default_sort_column": "ascending"},
-                {"column_id": "folder", "column_type": "text", "title": _("Folder"), "width": 150,
-                 "sort_column": 1, "expand_column": True},
-                {"column_id": "buddies", "column_type": "toggle", "title": _("Buddy-only"), "width": 0,
-                 "sort_column": 2, "toggle_callback": self.on_toggle_folder_buddy_only},
-            ]
+            columns={
+                "virtual_name": {
+                    "column_type": "text",
+                    "title": _("Virtual Folder"),
+                    "width": 65,
+                    "expand_column": True,
+                    "default_sort_column": "ascending"
+                },
+                "folder": {
+                    "column_type": "text",
+                    "title": _("Folder"),
+                    "width": 150,
+                    "expand_column": True
+                },
+                "buddy_only": {
+                    "column_type": "toggle",
+                    "title": _("Buddy-only"),
+                    "width": 0,
+                    "toggle_callback": self.on_toggle_folder_buddy_only
+                }
+            }
         )
 
         self.options = {
@@ -556,16 +595,16 @@ class SharesPage:
 
     def _set_shared_folder_buddy_only(self, iterator, is_buddy_only):
 
-        if is_buddy_only == self.shares_list_view.get_row_value(iterator, 2):
+        if is_buddy_only == self.shares_list_view.get_row_value(iterator, "buddy_only"):
             return
 
         self.rescan_required = True
 
-        virtual_name = self.shares_list_view.get_row_value(iterator, 0)
-        folder_path = self.shares_list_view.get_row_value(iterator, 1)
+        virtual_name = self.shares_list_view.get_row_value(iterator, "virtual_name")
+        folder_path = self.shares_list_view.get_row_value(iterator, "folder")
         mapping = (virtual_name, folder_path)
 
-        self.shares_list_view.set_row_value(iterator, 2, is_buddy_only)
+        self.shares_list_view.set_row_value(iterator, "buddy_only", is_buddy_only)
 
         if is_buddy_only:
             self.shared_folders.remove(mapping)
@@ -618,8 +657,8 @@ class SharesPage:
         virtual_name = core.shares.get_normalized_virtual_name(
             virtual_name, shared_folders=(self.shared_folders + self.buddy_shared_folders)
         )
-        old_virtual_name = self.shares_list_view.get_row_value(iterator, 0)
-        folder_path = self.shares_list_view.get_row_value(iterator, 1)
+        old_virtual_name = self.shares_list_view.get_row_value(iterator, "virtual_name")
+        folder_path = self.shares_list_view.get_row_value(iterator, "folder")
 
         old_mapping = (old_virtual_name, folder_path)
         new_mapping = (virtual_name, folder_path)
@@ -632,15 +671,15 @@ class SharesPage:
         shared_folders.remove(old_mapping)
         shared_folders.append(new_mapping)
 
-        self.shares_list_view.set_row_value(iterator, 0, virtual_name)
+        self.shares_list_view.set_row_value(iterator, "virtual_name", virtual_name)
         self._set_shared_folder_buddy_only(iterator, is_buddy_only)
 
     def on_edit_shared_folder(self, *_args):
 
         for iterator in self.shares_list_view.get_selected_rows():
-            virtual_name = self.shares_list_view.get_row_value(iterator, 0)
-            folder_path = self.shares_list_view.get_row_value(iterator, 1)
-            is_buddy_only = self.shares_list_view.get_row_value(iterator, 2)
+            virtual_name = self.shares_list_view.get_row_value(iterator, "virtual_name")
+            folder_path = self.shares_list_view.get_row_value(iterator, "folder")
+            is_buddy_only = self.shares_list_view.get_row_value(iterator, "buddy_only")
 
             EntryDialog(
                 parent=self.application.preferences,
@@ -655,15 +694,15 @@ class SharesPage:
             return
 
     def on_toggle_folder_buddy_only(self, list_view, iterator):
-        self._set_shared_folder_buddy_only(iterator, is_buddy_only=not list_view.get_row_value(iterator, 2))
+        self._set_shared_folder_buddy_only(iterator, is_buddy_only=not list_view.get_row_value(iterator, "buddy_only"))
 
     def on_remove_shared_folder(self, *_args):
 
         iterators = reversed(self.shares_list_view.get_selected_rows())
 
         for iterator in iterators:
-            virtual_name = self.shares_list_view.get_row_value(iterator, 0)
-            folder_path = self.shares_list_view.get_row_value(iterator, 1)
+            virtual_name = self.shares_list_view.get_row_value(iterator, "virtual_name")
+            folder_path = self.shares_list_view.get_row_value(iterator, "folder")
             mapping = (virtual_name, folder_path)
 
             if mapping in self.buddy_shared_folders:
@@ -812,21 +851,32 @@ class IgnoredUsersPage:
         self.ignored_users = []
         self.ignored_users_list_view = TreeView(
             application.window, parent=self.ignored_users_container, multi_select=True,
-            columns=[
-                {"column_id": "username", "column_type": "text", "title": _("Username"), "sort_column": 0,
-                 "default_sort_column": "ascending"}
-            ]
+            columns={
+                "username": {
+                    "column_type": "text",
+                    "title": _("Username"),
+                    "default_sort_column": "ascending"
+                }
+            }
         )
 
         self.ignored_ips = {}
         self.ignored_ips_list_view = TreeView(
             application.window, parent=self.ignored_ips_container, multi_select=True,
-            columns=[
-                {"column_id": "ip_address", "column_type": "text", "title": _("IP Address"), "sort_column": 0,
-                 "width": 50, "expand_column": True},
-                {"column_id": "user", "column_type": "text", "title": _("User"), "sort_column": 1,
-                 "expand_column": True, "default_sort_column": "ascending"}
-            ]
+            columns={
+                "ip_address": {
+                    "column_type": "text",
+                    "title": _("IP Address"),
+                    "width": 50,
+                    "expand_column": True
+                },
+                "user": {
+                    "column_type": "text",
+                    "title": _("User"),
+                    "expand_column": True,
+                    "default_sort_column": "ascending"
+                }
+            }
         )
 
         self.options = {
@@ -876,7 +926,7 @@ class IgnoredUsersPage:
     def on_remove_ignored_user(self, *_args):
 
         for iterator in reversed(self.ignored_users_list_view.get_selected_rows()):
-            user = self.ignored_users_list_view.get_row_value(iterator, 0)
+            user = self.ignored_users_list_view.get_row_value(iterator, "username")
 
             self.ignored_users_list_view.remove_row(iterator)
             self.ignored_users.remove(user)
@@ -905,7 +955,7 @@ class IgnoredUsersPage:
     def on_remove_ignored_ip(self, *_args):
 
         for iterator in reversed(self.ignored_ips_list_view.get_selected_rows()):
-            ip_address = self.ignored_ips_list_view.get_row_value(iterator, 0)
+            ip_address = self.ignored_ips_list_view.get_row_value(iterator, "ip_address")
 
             self.ignored_ips_list_view.remove_row(iterator)
             del self.ignored_ips[ip_address]
@@ -934,21 +984,32 @@ class BannedUsersPage:
         self.banned_users = []
         self.banned_users_list_view = TreeView(
             application.window, parent=self.banned_users_container, multi_select=True,
-            columns=[
-                {"column_id": "username", "column_type": "text", "title": _("Username"), "sort_column": 0,
-                 "default_sort_column": "ascending"}
-            ]
+            columns={
+                "username": {
+                    "column_type": "text",
+                    "title": _("Username"),
+                    "default_sort_column": "ascending"
+                }
+            }
         )
 
         self.banned_ips = {}
         self.banned_ips_list_view = TreeView(
             application.window, parent=self.banned_ips_container, multi_select=True,
-            columns=[
-                {"column_id": "ip_address", "column_type": "text", "title": _("IP Address"), "sort_column": 0,
-                 "width": 50, "expand_column": True},
-                {"column_id": "user", "column_type": "text", "title": _("User"), "sort_column": 1,
-                 "expand_column": True, "default_sort_column": "ascending"}
-            ]
+            columns={
+                "ip_address": {
+                    "column_type": "text",
+                    "title": _("IP Address"),
+                    "width": 50,
+                    "expand_column": True
+                },
+                "user": {
+                    "column_type": "text",
+                    "title": _("User"),
+                    "expand_column": True,
+                    "default_sort_column": "ascending"
+                }
+            }
         )
 
         self.options = {
@@ -1020,7 +1081,7 @@ class BannedUsersPage:
     def on_remove_banned_user(self, *_args):
 
         for iterator in reversed(self.banned_users_list_view.get_selected_rows()):
-            user = self.banned_users_list_view.get_row_value(iterator, 0)
+            user = self.banned_users_list_view.get_row_value(iterator, "username")
 
             self.banned_users_list_view.remove_row(iterator)
             self.banned_users.remove(user)
@@ -1050,7 +1111,7 @@ class BannedUsersPage:
     def on_remove_banned_ip(self, *_args):
 
         for iterator in reversed(self.banned_ips_list_view.get_selected_rows()):
-            ip_address = self.banned_ips_list_view.get_row_value(iterator, 0)
+            ip_address = self.banned_ips_list_view.get_row_value(iterator, "ip_address")
 
             self.banned_ips_list_view.remove_row(iterator)
             del self.banned_ips[ip_address]
@@ -1079,22 +1140,33 @@ class ChatsPage:
         self.censored_patterns = []
         self.censor_list_view = TreeView(
             application.window, parent=self.CensorList, multi_select=True, activate_row_callback=self.on_edit_censored,
-            columns=[
-                {"column_id": "pattern", "column_type": "text", "title": _("Pattern"), "sort_column": 0,
-                 "default_sort_column": "ascending"}
-            ]
+            columns={
+                "pattern": {
+                    "column_type": "text",
+                    "title": _("Pattern"),
+                    "default_sort_column": "ascending"
+                }
+            }
         )
 
         self.replacements = {}
         self.replacement_list_view = TreeView(
             application.window, parent=self.ReplacementList, multi_select=True,
             activate_row_callback=self.on_edit_replacement,
-            columns=[
-                {"column_id": "pattern", "column_type": "text", "title": _("Pattern"), "sort_column": 0,
-                 "width": 100, "expand_column": True, "default_sort_column": "ascending"},
-                {"column_id": "replacement", "column_type": "text", "title": _("Replacement"), "sort_column": 1,
-                 "expand_column": True}
-            ]
+            columns={
+                "pattern": {
+                    "column_type": "text",
+                    "title": _("Pattern"),
+                    "width": 100,
+                    "expand_column": True,
+                    "default_sort_column": "ascending"
+                },
+                "replacement": {
+                    "column_type": "text",
+                    "title": _("Replacement"),
+                    "expand_column": True
+                }
+            }
         )
 
         self.options = {
@@ -1240,16 +1312,16 @@ class ChatsPage:
         if not pattern:
             return
 
-        old_pattern = self.censor_list_view.get_row_value(iterator, 0)
+        old_pattern = self.censor_list_view.get_row_value(iterator, "pattern")
         self.censored_patterns.remove(old_pattern)
 
-        self.censor_list_view.set_row_value(iterator, 0, pattern)
+        self.censor_list_view.set_row_value(iterator, "pattern", pattern)
         self.censored_patterns.append(pattern)
 
     def on_edit_censored(self, *_args):
 
         for iterator in self.censor_list_view.get_selected_rows():
-            pattern = self.censor_list_view.get_row_value(iterator, 0)
+            pattern = self.censor_list_view.get_row_value(iterator, "pattern")
 
             EntryDialog(
                 parent=self.application.preferences,
@@ -1265,7 +1337,7 @@ class ChatsPage:
     def on_remove_censored(self, *_args):
 
         for iterator in reversed(self.censor_list_view.get_selected_rows()):
-            censor = self.censor_list_view.get_row_value(iterator, 0)
+            censor = self.censor_list_view.get_row_value(iterator, "pattern")
 
             self.censor_list_view.remove_row(iterator)
             self.censored_patterns.remove(censor)
@@ -1299,18 +1371,18 @@ class ChatsPage:
         if not pattern or not replacement:
             return
 
-        old_pattern = self.replacement_list_view.get_row_value(iterator, 0)
+        old_pattern = self.replacement_list_view.get_row_value(iterator, "pattern")
         del self.replacements[old_pattern]
 
         self.replacements[pattern] = replacement
-        self.replacement_list_view.set_row_value(iterator, 0, pattern)
-        self.replacement_list_view.set_row_value(iterator, 1, replacement)
+        self.replacement_list_view.set_row_value(iterator, "pattern", pattern)
+        self.replacement_list_view.set_row_value(iterator, "replacement", replacement)
 
     def on_edit_replacement(self, *_args):
 
         for iterator in self.replacement_list_view.get_selected_rows():
-            pattern = self.replacement_list_view.get_row_value(iterator, 0)
-            replacement = self.replacement_list_view.get_row_value(iterator, 1)
+            pattern = self.replacement_list_view.get_row_value(iterator, "pattern")
+            replacement = self.replacement_list_view.get_row_value(iterator, "replacement")
 
             EntryDialog(
                 parent=self.application.preferences,
@@ -1327,7 +1399,7 @@ class ChatsPage:
     def on_remove_replacement(self, *_args):
 
         for iterator in reversed(self.replacement_list_view.get_selected_rows()):
-            replacement = self.replacement_list_view.get_row_value(iterator, 0)
+            replacement = self.replacement_list_view.get_row_value(iterator, "pattern")
 
             self.replacement_list_view.remove_row(iterator)
             del self.replacements[replacement]
@@ -1916,12 +1988,21 @@ class UrlHandlersPage:
         self.protocol_list_view = TreeView(
             application.window, parent=self.protocol_list_container, multi_select=True,
             activate_row_callback=self.on_edit_handler,
-            columns=[
-                {"column_id": "protocol", "column_type": "text", "title": _("Protocol"), "sort_column": 0,
-                 "width": 120, "expand_column": True, "iterator_key": True, "default_sort_column": "ascending"},
-                {"column_id": "command", "column_type": "text", "title": _("Command"), "sort_column": 1,
-                 "expand_column": True}
-            ]
+            columns={
+                "protocol": {
+                    "column_type": "text",
+                    "title": _("Protocol"),
+                    "width": 120,
+                    "expand_column": True,
+                    "iterator_key": True,
+                    "default_sort_column": "ascending"
+                },
+                "command": {
+                    "column_type": "text",
+                    "title": _("Command"),
+                    "expand_column": True
+                }
+            }
         )
 
     def set_settings(self):
@@ -1965,7 +2046,7 @@ class UrlHandlersPage:
         self.protocols[protocol] = command
 
         if iterator:
-            self.protocol_list_view.set_row_value(iterator, 1, command)
+            self.protocol_list_view.set_row_value(iterator, "command", command)
             return
 
         self.protocol_list_view.add_row([protocol, command])
@@ -1989,16 +2070,16 @@ class UrlHandlersPage:
         if not command:
             return
 
-        protocol = self.protocol_list_view.get_row_value(iterator, 0)
+        protocol = self.protocol_list_view.get_row_value(iterator, "protocol")
 
         self.protocols[protocol] = command
-        self.protocol_list_view.set_row_value(iterator, 1, command)
+        self.protocol_list_view.set_row_value(iterator, "command", command)
 
     def on_edit_handler(self, *_args):
 
         for iterator in self.protocol_list_view.get_selected_rows():
-            protocol = self.protocol_list_view.get_row_value(iterator, 0)
-            command = self.protocol_list_view.get_row_value(iterator, 1)
+            protocol = self.protocol_list_view.get_row_value(iterator, "protocol")
+            command = self.protocol_list_view.get_row_value(iterator, "command")
 
             EntryDialog(
                 parent=self.application.preferences,
@@ -2014,7 +2095,7 @@ class UrlHandlersPage:
     def on_remove_handler(self, *_args):
 
         for iterator in reversed(self.protocol_list_view.get_selected_rows()):
-            protocol = self.protocol_list_view.get_row_value(iterator, 0)
+            protocol = self.protocol_list_view.get_row_value(iterator, "protocol")
 
             self.protocol_list_view.remove_row(iterator)
             del self.protocols[protocol]
@@ -2227,7 +2308,6 @@ class PluginsPage:
         ) = ui_template.widgets
 
         self.application = application
-        self.enabled_plugins = []
         self.selected_plugin = None
 
         self.options = {
@@ -2241,21 +2321,28 @@ class PluginsPage:
         self.plugin_list_view = TreeView(
             application.window, parent=self.plugin_list_container, always_select=True,
             select_row_callback=self.on_select_plugin,
-            columns=[
+            columns={
                 # Visible columns
-                {"column_id": "enabled", "column_type": "toggle", "title": _("Enabled"), "width": 0,
-                 "sort_column": 0, "toggle_callback": self.on_plugin_toggle, "hide_header": True},
-                {"column_id": "plugin", "column_type": "text", "title": _("Plugin"), "sort_column": 1,
-                 "default_sort_column": "ascending"},
+                "enabled": {
+                    "column_type": "toggle",
+                    "title": _("Enabled"),
+                    "width": 0,
+                    "toggle_callback": self.on_plugin_toggle,
+                    "hide_header": True
+                },
+                "plugin": {
+                    "column_type": "text",
+                    "title": _("Plugin"),
+                    "default_sort_column": "ascending"
+                },
 
                 # Hidden data columns
-                {"column_id": "plugin_hidden", "data_type": str}
-            ]
+                "plugin_id": {"data_type": str}
+            }
         )
 
     def set_settings(self):
 
-        self.enabled_plugins.clear()
         self.plugin_list_view.clear()
 
         self.application.preferences.set_widgets_data(self.options)
@@ -2270,15 +2357,11 @@ class PluginsPage:
             enabled = (plugin_id in config.sections["plugins"]["enabled"])
             self.plugin_list_view.add_row([enabled, plugin_name, plugin_id], select_row=False)
 
-            if enabled:
-                self.enabled_plugins.append(plugin_id)
-
     def get_settings(self):
 
         return {
             "plugins": {
-                "enable": self.enable_plugins_toggle.get_active(),
-                "enabled": self.enabled_plugins[:]
+                "enable": self.enable_plugins_toggle.get_active()
             }
         }
 
@@ -2291,7 +2374,7 @@ class PluginsPage:
             self.selected_plugin = _("No Plugin Selected")
             info = {}
         else:
-            self.selected_plugin = list_view.get_row_value(iterator, 2)
+            self.selected_plugin = list_view.get_row_value(iterator, "plugin_id")
             info = core.pluginhandler.get_plugin_info(self.selected_plugin)
 
         plugin_name = info.get("Name", self.selected_plugin)
@@ -2310,24 +2393,19 @@ class PluginsPage:
 
     def on_plugin_toggle(self, list_view, iterator):
 
-        plugin_id = list_view.get_row_value(iterator, 2)
-        value = list_view.get_row_value(iterator, 0)
-        list_view.set_row_value(iterator, 0, not value)
+        plugin_id = list_view.get_row_value(iterator, "plugin_id")
+        enabled = core.pluginhandler.toggle_plugin(plugin_id)
 
-        if not value:
-            core.pluginhandler.enable_plugin(plugin_id)
-            self.enabled_plugins.append(plugin_id)
-        else:
-            core.pluginhandler.disable_plugin(plugin_id)
-            self.enabled_plugins.remove(plugin_id)
-
+        list_view.set_row_value(iterator, "enabled", enabled)
         self.check_plugin_settings_button(plugin_id)
 
     def on_enable_plugins(self, *_args):
 
+        enabled_plugin_ids = config.sections["plugins"]["enabled"].copy()
+
         if self.enable_plugins_toggle.get_active():
             # Enable all selected plugins
-            for plugin_id in self.enabled_plugins:
+            for plugin_id in enabled_plugin_ids:
                 core.pluginhandler.enable_plugin(plugin_id)
 
             self.check_plugin_settings_button(self.selected_plugin)
@@ -2337,6 +2415,7 @@ class PluginsPage:
         for plugin in core.pluginhandler.enabled_plugins.copy():
             core.pluginhandler.disable_plugin(plugin)
 
+        config.sections["plugins"]["enabled"] = enabled_plugin_ids
         self.plugin_settings_button.set_sensitive(False)
 
     def on_add_plugins(self, *_args):
@@ -2393,23 +2472,8 @@ class Preferences(Dialog):
             self.viewport.set_focus_vadjustment(self.content.get_vadjustment())
 
         self.pages = {}
-        self.page_ids = [
-            ("network", _("Network"), "network-wireless-symbolic"),
-            ("user-interface", _("User Interface"), "view-grid-symbolic"),
-            ("shares", _("Shares"), "folder-symbolic"),
-            ("downloads", _("Downloads"), "document-save-symbolic"),
-            ("uploads", _("Uploads"), "emblem-shared-symbolic"),
-            ("searches", _("Searches"), "system-search-symbolic"),
-            ("user-profile", _("User Profile"), "avatar-default-symbolic"),
-            ("chats", _("Chats"), "insert-text-symbolic"),
-            ("now-playing", _("Now Playing"), "folder-music-symbolic"),
-            ("logging", _("Logging"), "folder-documents-symbolic"),
-            ("banned-users", _("Banned Users"), "action-unavailable-symbolic"),
-            ("ignored-users", _("Ignored Users"), "microphone-sensitivity-muted-symbolic"),
-            ("plugins", _("Plugins"), "list-add-symbolic"),
-            ("url-handlers", _("URL Handlers"), "insert-link-symbolic")]
 
-        for _page_id, label, icon_name in self.page_ids:
+        for _page_id, label, icon_name in PAGE_IDS:
             box = Gtk.Box(margin_top=8, margin_bottom=8, margin_start=12, margin_end=12, spacing=12, visible=True)
             icon = Gtk.Image(icon_name=icon_name, visible=True)
             label = Gtk.Label(label=label, xalign=0, visible=True)
@@ -2428,7 +2492,7 @@ class Preferences(Dialog):
         if page_id is None:
             return
 
-        for index, (n_page_id, _label, _icon_name) in enumerate(self.page_ids):
+        for index, (n_page_id, _label, _icon_name) in enumerate(PAGE_IDS):
             if n_page_id != page_id:
                 continue
 
@@ -2773,7 +2837,7 @@ class Preferences(Dialog):
 
     def on_switch_page(self, _listbox, row):
 
-        page_id, _label, _icon_name = self.page_ids[row.get_index()]
+        page_id, _label, _icon_name = PAGE_IDS[row.get_index()]
         old_page = self.viewport.get_child()
 
         if old_page:

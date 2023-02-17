@@ -73,7 +73,7 @@ class Notifications:
 
         elif self.application.window.chatrooms.highlighted_rooms:
             # Allow for the possibility the username is not available
-            room = self.application.window.chatrooms.highlighted_rooms[-1]
+            room, user = list(self.application.window.chatrooms.highlighted_rooms.items())[-1]
             notification_text = _("Mentioned by %(user)s in Room %(room)s") % {"user": user, "room": room}
 
             self.application.window.set_title(f"{app_name} - {notification_text}")
@@ -124,7 +124,7 @@ class Notifications:
                 else:
                     notification.set_default_action(action)
 
-            self.application.send_notification(None, notification)
+            self.application.send_notification(event_id=None, notification=notification)
 
             if config.sections["notifications"]["notification_popup_sound"]:
                 Gdk.Display.get_default().beep()
