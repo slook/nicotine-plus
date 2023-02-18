@@ -88,8 +88,7 @@ class NetworkFilter:
 
     @staticmethod
     def _get_previous_user_ip_addresses(user, ip_list):
-        """ Retrieve IP address of a user previously saved in an IP list, for
-        setting Ban/Ignore IP Address check buttons in user actions menus """
+        """ Retrieve IP address of a user previously saved in an IP list """
 
         ip_addresses = set()
 
@@ -178,22 +177,22 @@ class NetworkFilter:
     """ IP Filter Rule Processing """
 
     def _check_user_ips_filtered(self, ip_list, username=None, ip_addresses=None):
-        """ Check if an IP address is present in a list """
+        """ Check if a user has any IP addresses present in a list or not """
 
         if not ip_addresses:
-            # Get all known IP addresses for user
-            ip_addresses = self._get_previous_user_ip_addresses(username, ip_list)
             online_ip_address = self.get_online_user_ip_address(username)
 
             if online_ip_address:
-                ip_addresses.add(online_ip_address)
+                # User is currently online. We should already have all known addressess by now.
+                ip_addresses = {online_ip_address}
 
-            elif username and f"? ({username})" in ip_addresses:
-                # Username placeholder present. We don't know the user's IP address yet, but we want to filter it.
-                return True
+            else:
+                # User is currently offline. Get all known IP addresses for user.
+                ip_addresses = self._get_previous_user_ip_addresses(username, ip_list)
 
-            if not ip_addresses:
-                return False
+                if f"? ({username})" in ip_addresses:
+                    # Username placeholder present. We don't know the user's IP address yet, but we want to filter it.
+                    return True
 
         for ip_address in ip_addresses:
             s_address = ip_address.split(".")
@@ -218,7 +217,8 @@ class NetworkFilter:
 
                     # Last time around
                     if seg == 4:
-                        # Wildcard filter
+                        # Wildcard filter match, add the actual IP address to list
+                        self._add_user_ip_to_list(ip_list, username or f"* ({ip_address})", ip_address)
                         return True
 
         # Not filtered
@@ -275,15 +275,18 @@ class NetworkFilter:
     def _update_saved_user_ip_addresses(self, ip_list, username, ip_address):
         """ Check if a user's IP address has changed and update the lists """
 
+        if ip_address in ip_list and ip_list[ip_address] == username:
+            # Address is filtered and this user is already listed
+            return
+
         previous_ip_addresses = self._get_previous_user_ip_addresses(username, ip_list)
 
         if not previous_ip_addresses:
-            # User is not banned
+            # User is not filtered
             return
 
-        ip_address_placeholder = f"? ({username})"
-
-        if ip_address_placeholder in previous_ip_addresses:
+        if f"? ({username})" in previous_ip_addresses:
+            # Username placeholder present. Replace it with the actual IP address.
             self._remove_user_ips_from_list(ip_list, ip_addresses=[ip_address_placeholder])
 
         if ip_address not in previous_ip_addresses:
