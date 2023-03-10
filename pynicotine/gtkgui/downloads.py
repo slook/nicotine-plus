@@ -169,7 +169,7 @@ class Downloads(TransferList):
                 # Prioritize finished downloads
                 break
 
-        open_file_path(folder_path, command=config.sections["ui"]["filemanager"])
+        open_file_path(file_path or folder_path, command=config.sections["ui"]["filemanager"])
 
     def on_play_files(self, *_args):
 
