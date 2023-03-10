@@ -591,42 +591,37 @@ class SharesPage:
         if is_buddy_only == self.shares_list_view.get_row_value(iterator, "buddy_only"):
             return
 
-        self.rescan_required = True
+        self.shares_list_view.set_row_value(iterator, "buddy_only", is_buddy_only)
 
         virtual_name = self.shares_list_view.get_row_value(iterator, "virtual_name")
         folder_path = self.shares_list_view.get_row_value(iterator, "folder")
-        mapping = (virtual_name, folder_path)
+        group_name = "buddy" if is_buddy_only else "public"
 
-        self.shares_list_view.set_row_value(iterator, "buddy_only", is_buddy_only)
+        new_mapping = core.shares.new_folder_mapping(
+            group_name, virtual_name, folder_path,
+            share_groups=(self.shared_folders, self.buddy_shared_folders)
+        )
 
-        if is_buddy_only:
-            self.shared_folders.remove(mapping)
-            self.buddy_shared_folders.append(mapping)
-            return
-
-        self.buddy_shared_folders.remove(mapping)
-        self.shared_folders.append(mapping)
+        if new_mapping:
+            self.rescan_required = True
 
     def on_add_shared_folder_selected(self, selected, _data):
 
         for folder_path in selected:
-            if folder_path is None:
-                continue
-
-            if folder_path in (x[1] for x in self.shared_folders + self.buddy_shared_folders):
-                continue
-
-            self.rescan_required = True
-
-            virtual_name = core.shares.get_normalized_virtual_name(
-                os.path.basename(os.path.normpath(folder_path)),
-                shared_folders=(self.shared_folders + self.buddy_shared_folders)
+            new_mapping = core.shares.new_folder_mapping(
+                folder_path=folder_path,
+                share_groups=(self.shared_folders, self.buddy_shared_folders)
             )
-            mapping = (virtual_name, folder_path)
+
+            if not new_mapping:
+                continue
+
+            virtual_name, folder_path = new_mapping
             is_buddy_only = False
 
             self.shares_list_view.add_row([virtual_name, folder_path, is_buddy_only])
-            self.shared_folders.append(mapping)
+
+            self.rescan_required = True
 
     def on_add_shared_folder(self, *_args):
 
@@ -639,33 +634,24 @@ class SharesPage:
 
     def on_edit_shared_folder_response(self, dialog, _response_id, iterator):
 
-        virtual_name = dialog.get_entry_value()
+        new_virtual_name = dialog.get_entry_value()
         is_buddy_only = dialog.get_option_value()
 
-        if not virtual_name:
+        folder_path = self.shares_list_view.get_row_value(iterator, "folder")
+        group_name = "buddy" if is_buddy_only else "public"
+
+        new_mapping = core.shares.new_folder_mapping(
+            group_name, new_virtual_name, folder_path,
+            share_groups=(self.shared_folders, self.buddy_shared_folders)
+        )
+
+        if not new_mapping:
             return
 
+        self.shares_list_view.set_row_value(iterator, "virtual_name", new_mapping[0])
+        self.shares_list_view.set_row_value(iterator, "buddy_only", is_buddy_only)
+
         self.rescan_required = True
-
-        virtual_name = core.shares.get_normalized_virtual_name(
-            virtual_name, shared_folders=(self.shared_folders + self.buddy_shared_folders)
-        )
-        old_virtual_name = self.shares_list_view.get_row_value(iterator, "virtual_name")
-        folder_path = self.shares_list_view.get_row_value(iterator, "folder")
-
-        old_mapping = (old_virtual_name, folder_path)
-        new_mapping = (virtual_name, folder_path)
-
-        if old_mapping in self.buddy_shared_folders:
-            shared_folders = self.buddy_shared_folders
-        else:
-            shared_folders = self.shared_folders
-
-        shared_folders.remove(old_mapping)
-        shared_folders.append(new_mapping)
-
-        self.shares_list_view.set_row_value(iterator, "virtual_name", virtual_name)
-        self._set_shared_folder_buddy_only(iterator, is_buddy_only)
 
     def on_edit_shared_folder(self, *_args):
 
