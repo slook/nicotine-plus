@@ -315,6 +315,21 @@ class UserBrowse:
         except Exception:
             log.add(_("Invalid Soulseek URL: %s"), url)
 
+    def open_soulseek_path(self, entry_text):
+
+        if entry_text.startswith("slsk://"):
+            self.open_soulseek_url(entry_text)
+            return
+
+        text = entry_text.lstrip("\\")
+
+        if "\\" in text:
+            user, file_path = text.split("\\", maxsplit=1)
+        else:
+            user, file_path = entry_text, None
+
+        self.browse_user(user, path=file_path)
+
     def _shared_file_list_response(self, msg):
 
         user = msg.init.target_user
