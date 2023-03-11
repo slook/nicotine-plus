@@ -2538,7 +2538,7 @@ class Preferences(Dialog):
             return widget.get_text()
 
         if isinstance(widget, TextView):
-            return repr(widget.get_text())
+            return widget.get_text()
 
         if isinstance(widget, Gtk.CheckButton):
             try:
