@@ -159,12 +159,12 @@ class DownloadFolder(Dialog):
                 for file in self.folder_files["filenames"]:
                     if file["filename"] == filename:
                         size = file["size"]
-                        h_bitrate = file["h_bitrate"]
-                        h_length = file["h_length"]
+                        bitrate = file["bitrate"]
+                        length = file["length"]
                         break
 
                 core.transfers.get_file(username, virtualpath, path=destination,
-                                        size=size, bitrate=h_bitrate, length=h_length)
+                                        size=size, bitrate=bitrate, length=length)
 
         self.close()
 
@@ -240,14 +240,14 @@ class DownloadFolder(Dialog):
 
                 for file in files:
                     size = file[2]
-                    h_bitrate, _bitrate, h_length, _length = slskmessages.FileListMessage.parse_result_bitrate_length(
+                    _h_bitrate, bitrate, _h_length, length = slskmessages.FileListMessage.parse_result_bitrate_length(
                         size, file[4])
 
                     folder_files["filenames"].append({
                         "filename": file[1],
                         "size": file[2],
-                        "h_bitrate": h_bitrate,
-                        "h_length": h_length
+                        "bitrate": bitrate,
+                        "length": length
                     })
 
         self.set_folder_files(folder_files)
