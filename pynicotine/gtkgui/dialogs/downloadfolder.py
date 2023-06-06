@@ -64,6 +64,12 @@ class DownloadFolder(Dialog):
         self.list_view = TreeView(
             application.window, parent=self.list_container, multi_select=True, activate_row_callback=None,
             columns={
+                "download": {
+                    "column_type": "toggle",
+                    "title": "Download",
+                    "width": 0,
+                    "toggle_callback": self.on_download_option
+                },
                 "filename": {
                     "column_type": "text",
                     "title": "File Name",
@@ -75,12 +81,6 @@ class DownloadFolder(Dialog):
                     "title": "Size",
                     "width": 100,
                     "expand_column": False
-                },
-                "download": {
-                    "column_type": "toggle",
-                    "title": "Download",
-                    "width": 0,
-                    "toggle_callback": self.on_download_option
                 }
             }
         )
@@ -123,7 +123,7 @@ class DownloadFolder(Dialog):
 
         for file in self.folder_files["filenames"]:
             size = file["size"]
-            self.list_view.add_row([file["filename"], (human_size(size)), True])
+            self.list_view.add_row([True, file["filename"], (human_size(size))])
 
     # Toggle Checkbox Value
     def on_download_option(self, list_view, iterator):
