@@ -358,7 +358,7 @@ class Application:
             message=msg,
             buttons=[
                 ("cancel", _("_Cancel")),
-                ("ok", _("Change _Login Details"))
+                ("ok", _("_Enter Login Details"))
             ],
             callback=self.on_invalid_password_response
         ).show()

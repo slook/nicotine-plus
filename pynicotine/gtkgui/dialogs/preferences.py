@@ -210,19 +210,23 @@ class NetworkPage:
     def on_change_password(self, *_args):
 
         if core.user_status != slskmessages.UserStatus.OFFLINE:
-            message = _("Enter a new password for your Soulseek account:")
+            action = _("_Change")
+            title = _("Change Soulseek Password")
+            message = _("Choose a new password for your Soulseek account:")
         else:
+            action = _("_Enter")
+            title = _("Enter Soulseek Password")
             message = (_("You are currently logged out of the Soulseek network. If you want to change "
                          "the password of an existing Soulseek account, you need to be logged into that account.")
                        + "\n\n"
-                       + _("Enter password to use when logging in:"))
+                       + _("Enter the Soulseek account password for user %s:") % config.sections["server"]["login"])
 
         EntryDialog(
             parent=self.application.preferences,
-            title=_("Change Password"),
+            title=title,
             message=message,
             visibility=False,
-            action_button_label=_("_Change"),
+            action_button_label=action,
             callback=self.on_change_password_response,
             callback_data=core.user_status
         ).show()
