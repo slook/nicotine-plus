@@ -47,7 +47,8 @@ class TreeView:
 
     def __init__(self, window, parent, columns, has_tree=False, multi_select=False, always_select=False,
                  name=None, secondary_name=None, activate_row_callback=None, focus_in_callback=None,
-                 select_row_callback=None, delete_accelerator_callback=None, search_entry=None):
+                 focus_out_callback=None, select_row_callback=None, delete_accelerator_callback=None,
+                 search_entry=None):
 
         self.window = window
         self.widget = Gtk.TreeView(enable_tree_lines=True, fixed_height_mode=True, has_tooltip=True, visible=True)
@@ -94,13 +95,23 @@ class TreeView:
         if activate_row_callback:
             self.widget.connect("row-activated", self.on_activate_row, activate_row_callback)
 
-        if focus_in_callback:
+        if focus_in_callback or focus_out_callback:
             if GTK_API_VERSION >= 4:
                 focus_controller = Gtk.EventControllerFocus()
-                focus_controller.connect("enter", self.on_focus_in, focus_in_callback)
+
+                if focus_in_callback:
+                    focus_controller.connect("enter", self.on_focus_event, focus_in_callback)
+
+                if focus_out_callback:
+                    focus_controller.connect("leave", self.on_focus_event, focus_out_callback)
+
                 self.widget.add_controller(focus_controller)  # pylint: disable=no-member
             else:
-                self.widget.connect("focus-in-event", self.on_focus_in, focus_in_callback)
+                if focus_in_callback:
+                    self.widget.connect("focus-in-event", self.on_focus_event, focus_in_callback)
+
+                if focus_out_callback:
+                    self.widget.connect("focus-out-event", self.on_focus_event, focus_out_callback)
 
         if select_row_callback:
             self._selection.connect("changed", self.on_select_row, select_row_callback)
@@ -619,7 +630,7 @@ class TreeView:
     def on_activate_row(self, _widget, path, column, callback):
         callback(self, self.model.get_iter(path), column.id)
 
-    def on_focus_in(self, *args):
+    def on_focus_event(self, *args):
 
         if GTK_API_VERSION >= 4:
             _widget, callback = args

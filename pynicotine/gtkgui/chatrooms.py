@@ -423,7 +423,7 @@ class ChatRoom:
 
         self.users_list_view = TreeView(
             self.window, parent=self.users_list_container, name="chat_room", secondary_name=room,
-            activate_row_callback=self.on_row_activated,
+            activate_row_callback=self.on_row_activated, focus_out_callback=self.on_list_view_unfocused,
             columns={
                 # Visible columns
                 "status": {
@@ -688,6 +688,9 @@ class ChatRoom:
             return self.users_list_view.get_row_value(iterator, "user")
 
         return None
+
+    def on_list_view_unfocused(self, list_view):
+        list_view.unselect_all_rows()
 
     def on_row_activated(self, _list_view, _path, _column):
 
