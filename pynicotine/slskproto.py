@@ -1314,7 +1314,7 @@ class NetworkThread(Thread):
                             msg.local_address = self._user_addresses[self._server_username]
                             local_ip_address, port = msg.local_address
                             self._portmapper.set_port(port, local_ip_address)
-                            self._portmapper.add_port_mapping(blocking=True)
+                            self._portmapper.add_port_mapping(blocking=True, bind_interface_name=self._interface_name)
 
                             msg.username = self._server_username
 

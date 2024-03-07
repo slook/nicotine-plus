@@ -112,35 +112,94 @@ class NATPMP(BaseImplementation):
         self._gateway_address = None
 
     @staticmethod
-    def _get_gateway_address():
+    def _get_routes():
+
+        routes = []
 
         if sys.platform == "linux":
-            gateway_address = None
-
             with open("/proc/net/route", encoding="utf-8") as file_handle:
                 next(file_handle)  # Skip header
 
                 for line in file_handle:
-                    routes = line.strip().split()
-                    destination_address = socket.inet_ntoa(struct.pack("<L", int(routes[1], 16)))
+                    route = line.strip().split()
 
-                    if destination_address != "0.0.0.0":
-                        continue
+                    route_iface = route[0]
+                    route_destination = socket.inet_ntoa(struct.pack("<L", int(route[1], 16)))
+                    route_gateway = socket.inet_ntoa(struct.pack("<L", int(route[2], 16)))
+                    route_iflags = int(route[3])
 
-                    gateway_address = socket.inet_ntoa(struct.pack("<L", int(routes[2], 16)))
-                    break
+                    is_routable = (route_iflags == 1 + 2)  # 0x0001 + 0x0002 == "U" + "G"
 
-            return gateway_address
+                    routes.append([[route_iface, route_destination, route_gateway, route_iflags], is_routable])
 
-        if sys.platform == "win32":
-            gateway_pattern = re.compile(b".*?0.0.0.0 +0.0.0.0 +(.*?) +?[^\n]*\n")
-        else:
-            gateway_pattern = re.compile(b"(?:default|0\\.0\\.0\\.0|::/0)\\s+([\\w\\.:]+)\\s+.*UG")
+        if not routes:
+            output = execute_command("netstat -rn", returnoutput=True, hidden=True)
 
-        output = execute_command("netstat -rn", returnoutput=True, hidden=True)
-        return gateway_pattern.search(output).group(1)
+            if sys.platform == "win32":
+                gateway_pattern = re.compile(b".*?0.0.0.0 +0.0.0.0 +(.*?) +?[^\n]*\n")
+            else:
+                gateway_pattern = re.compile(b"(?:default|0\\.0\\.0\\.0|::/0)\\s+([\\w\\.:]+)\\s+.*UG")
+
+            for line in output.splitlines():
+                route = line.decode().strip().split()
+
+                if len(route) < 7 or route[6].isalpha():
+                    continue  # Skip header
+
+                route_iface = route[-1]
+                route_destination = route[0]
+                route_gateway = route[1]
+                route_sflags = route[3]  # .../net-tools/lib/inet_gr.c
+                route_iflags = ((1 if "U" in route_sflags else 0) +
+                                (2 if "G" in route_sflags else 0))
+
+                is_routable = (route_iflags == 1 + 2) or bool(gateway_pattern.search(line))
+
+                routes.append([[route_iface, route_destination, route_gateway, route_iflags], is_routable])
+
+        log.add_debug(f"NAT-PMP: Discovered {len(routes)} network interfaces")
+
+        return routes
+
+    @staticmethod
+    def _get_gateway_address(routes, bind_interface_name):
+
+        gateway_address = None
+        interface_name = None
+
+        for route, is_routable in routes:
+            route_iface, route_destination, route_gateway, route_iflags = route
+
+            if bind_interface_name:
+                # Bind to the specified interface only
+                if route_iface != bind_interface_name:
+                    continue
+
+                if route_gateway == "0.0.0.0" and route_destination != "0.0.0.0":
+                    # Termux (Android) don't list gateway
+                    route_gateway = route_destination
+
+            elif route_gateway == "0.0.0.0":
+                continue
+
+            gateway_address = route_gateway
+            interface_name = route_iface
+
+            if is_routable:
+                break
+
+        if not bind_interface_name and gateway_address is None:
+            gateway_address = "0.0.0.0"  # Undefined anycast IP
+
+        log.add_debug(f"NAT-PMP: Gateway address {gateway_address} route from {interface_name} interface")
+
+        return gateway_address
 
     def _request_port_mapping(self, public_port, private_port, lease_duration):
+
+        if self._gateway_address is None:
+            log.add_debug("NAT-PMP: No route to gateway")
+            return None
 
         with socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM, proto=socket.IPPROTO_UDP) as sock:
             sock.bind((self.local_ip_address, 0))
@@ -162,9 +221,12 @@ class NATPMP(BaseImplementation):
 
         return None
 
-    def add_port_mapping(self, lease_duration):
+    def add_port_mapping(self, lease_duration, bind_interface_name):
 
-        self._gateway_address = self._get_gateway_address()
+        self._gateway_address = self._get_gateway_address(
+            self._get_routes(),
+            bind_interface_name
+        )
         result = self._request_port_mapping(
             public_port=self.port,
             private_port=self.port,
@@ -535,6 +597,7 @@ class PortMapper:
     def __init__(self):
 
         self._active_implementation = None
+        self._bind_interface_name = None
         self._has_port = False
         self._is_mapping_port = False
         self._timer = None
@@ -559,7 +622,7 @@ class PortMapper:
 
         try:
             self._active_implementation = self._natpmp
-            self._natpmp.add_port_mapping(self.LEASE_DURATION)
+            self._natpmp.add_port_mapping(self.LEASE_DURATION, self._bind_interface_name)
 
         except Exception as natpmp_error:
             log.add_debug("NAT-PMP not available, falling back to UPnP: %s", natpmp_error)
@@ -611,6 +674,7 @@ class PortMapper:
             })
 
         self._active_implementation = None
+        self._bind_interface_name = None
         self._is_mapping_port = False
 
     def _start_renewal_timer(self):
@@ -627,7 +691,7 @@ class PortMapper:
 
         self._has_port = (port is not None)
 
-    def add_port_mapping(self, blocking=False):
+    def add_port_mapping(self, blocking=False, bind_interface_name=None):
 
         # Check if we want to do a port mapping
         if not config.sections["server"]["upnp"]:
@@ -635,6 +699,9 @@ class PortMapper:
 
         if not self._has_port:
             return
+
+        # Use a specified interface or None for default
+        self._bind_interface_name = bind_interface_name
 
         # Do the port mapping
         if blocking:
