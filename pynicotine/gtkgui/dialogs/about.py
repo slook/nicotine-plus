@@ -355,7 +355,8 @@ Copyright (c) 2016–2021 Bowtie AB
 
         """<b>Country data licensed under the CC-BY-SA-4.0 License.</b>
 Copyright (c) 2001–2024 Hexasoft Development Sdn. Bhd.
-Nicotine+ uses the IP2Location LITE database for <a href="https://lite.ip2location.com">IP geolocation</a>."""]
+Nicotine+ uses the IP2Location LITE database for IP geolocation.
+<a href="https://lite.ip2location.com/ip2location-lite">https://lite.ip2location.com/ip2location-lite</a>"""]
 
     def __init__(self, application):
 
