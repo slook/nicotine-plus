@@ -218,9 +218,17 @@ class Database:
 
 
 class ScannerState:
+    __slots__ = ("state", "current_activity", "current_file_index", "current_folder_count")
+
     INITIALIZED = "initialized"
     RESCANNING = "rescanning"
     FAILURE = "failure"
+
+    def __init__(self):
+        self.state = None
+        self.current_activity = ""
+        self.current_file_index = 0
+        self.current_folder_count = 0
 
 
 class ScannerLogMessage:
@@ -241,8 +249,7 @@ class Scanner:
     __slots__ = ("writer", "share_groups", "share_dbs", "share_db_paths", "init",
                  "rescan", "rebuild", "reveal_buddy_shares", "reveal_trusted_shares",
                  "files", "streams", "mtimes", "word_index", "processed_share_names",
-                 "processed_share_paths", "current_file_index", "current_folder_count",
-                 "lowercase_paths")
+                 "processed_share_paths", "progress", "lowercase_paths")
 
     HIDDEN_FOLDER_NAMES = {"@eaDir", "#recycle", "#snapshot"}
 
@@ -265,8 +272,8 @@ class Scanner:
         self.word_index = defaultdict(list)
         self.processed_share_names = set()
         self.processed_share_paths = set()
-        self.current_file_index = 0
-        self.current_folder_count = 0
+
+        self.progress = ScannerState()
 
     def run(self):
 
@@ -288,13 +295,12 @@ class Scanner:
                     # Failed to load shares or version is invalid, rebuild
                     self.rescan = self.rebuild = True
 
-                self.writer.send(ScannerState.INITIALIZED)
+                self.progress.state = ScannerState.INITIALIZED
+                self.writer.send(self.progress)
 
             if self.rescan:
-                self.writer.send(ScannerState.RESCANNING)
-                self.writer.send(
-                    ScannerLogMessage(_("Rebuilding shares…") if self.rebuild else _("Rescanning shares…"))
-                )
+                self.progress.state = ScannerState.RESCANNING
+                message = _("Rebuilding %(group)s shares…") if self.rebuild else _("Rescanning %(group)s shares…")
 
                 # Clear previous word index to prevent inconsistent state if the scanner fails
                 self.set_shares(word_index={})
@@ -305,6 +311,8 @@ class Scanner:
                     PermissionLevel.BUDDY,
                     PermissionLevel.TRUSTED
                 ):
+                    self.progress.current_activity = message % {"group": permission_level}
+                    self.writer.send(ScannerLogMessage(self.progress.current_activity))
                     self.rescan_dirs(permission_level)
 
                 self.set_shares(word_index=self.word_index, lowercase_paths=self.lowercase_paths)
@@ -317,7 +325,7 @@ class Scanner:
                 self.writer.send(
                     ScannerLogMessage(
                         _("Rescan complete: %(num)s folders found"),
-                        {"num": self.current_folder_count}
+                        {"num": self.progress.current_folder_count}
                     )
                 )
 
@@ -334,7 +342,8 @@ class Scanner:
                     }
                 )
             )
-            self.writer.send(ScannerState.FAILURE)
+            self.progress.state = ScannerState.FAILURE
+            self.writer.send(self.progress)
 
         finally:
             self.writer.close()
@@ -530,7 +539,8 @@ class Scanner:
                 # Sharing a folder twice, no go
                 continue
 
-            self.writer.send(self.current_folder_count)
+            self.progress.current_activity = virtual_folder_path
+            self.writer.send(self.progress)
 
             file_list = []
 
@@ -565,7 +575,7 @@ class Scanner:
                                 continue
 
                             file_stat = entry.stat()
-                            file_index = self.current_file_index
+                            file_index = self.progress.current_file_index
                             self.mtimes[path] = file_mtime = file_stat.st_mtime
                             virtual_file_path = f"{virtual_folder_path}\\{basename_escaped}"
                             virtual_folder_path_lower = virtual_folder_path.lower()
@@ -586,7 +596,7 @@ class Scanner:
                             self.files[path] = full_path_file_data
                             self.lowercase_paths[virtual_folder_path_lower][basename_escaped.lower()] = file_index
 
-                            self.current_file_index += 1
+                            self.progress.current_file_index += 1
 
                         except OSError as error:
                             self.writer.send(
@@ -605,7 +615,7 @@ class Scanner:
                 )
 
             self.streams[virtual_folder_path] = self.get_folder_stream(file_list)
-            self.current_folder_count += 1
+            self.progress.current_folder_count += 1
 
     def get_audio_tag(self, file_path, size):
 
@@ -1095,7 +1105,7 @@ class Shares:
         self.close_shares(self.share_dbs)
         self.file_path_index = ()
 
-        events.emit("shares-preparing")
+        events.emit("shares-scanning")
 
         share_groups = self.get_shared_folders()
         self._scanner_process, reader = self._build_scanner_process(share_groups, init, rescan, rebuild)
@@ -1159,11 +1169,11 @@ class Shares:
     def _process_scanner(self, reader, emit_event=None):
 
         successful = True
-        current_folder_count = None
 
         while self._scanner_process.is_alive() and successful:
             # Cooldown
             time.sleep(0.2)
+            progress = None
 
             while True:
                 try:
@@ -1177,13 +1187,16 @@ class Shares:
                 except EOFError:
                     break
 
-                if item == ScannerState.FAILURE:
-                    successful = False
-                    break
+                if isinstance(item, ScannerState):
+                    if item.state == ScannerState.RESCANNING:
+                        progress = item
 
-                if isinstance(item, int):
-                    if emit_event is not None:
-                        current_folder_count = item
+                    elif item.state == ScannerState.INITIALIZED:
+                        self.initialized = True
+
+                    elif item.state == ScannerState.FAILURE:
+                        successful = False
+                        break
 
                 elif isinstance(item, ScannerLogMessage):
                     log.add(item.msg, item.msg_args)
@@ -1194,16 +1207,8 @@ class Shares:
                 elif isinstance(item, SharedFileListResponse):
                     self.compressed_shares[item.permission_level] = item
 
-                elif item == ScannerState.RESCANNING:
-                    if emit_event is not None:
-                        emit_event("shares-scanning")
-
-                elif item == ScannerState.INITIALIZED:
-                    self.initialized = True
-
-            if current_folder_count:
-                emit_event("shares-scanning", current_folder_count)
-                current_folder_count = None
+            if emit_event is not None and progress:
+                emit_event("shares-scanning", progress)
 
         reader.close()
         self._scanner_process.close()
