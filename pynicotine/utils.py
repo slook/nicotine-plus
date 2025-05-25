@@ -203,7 +203,34 @@ def encode_path(path, prefix=True):
     return path.encode("utf-8")
 
 
+def human_duration(seconds, max_seconds=60, max_minutes=60, max_hours=24):
+    """Approximate long time span rounded to nearest unit.
+
+    Set unit max higher for more precision or -1 to use less precise units.
+    """
+
+    seconds = int(seconds)
+
+    if seconds < max_seconds:
+        return ngettext("%(num)s second", "%(num)s seconds", seconds) % {"num": seconds}
+
+    minutes = seconds // 60
+
+    if minutes < max_minutes:
+        return ngettext("%(num)s minute", "%(num)s minutes", minutes) % {"num": minutes}
+
+    hours = minutes // 60
+
+    if hours < max_hours:
+        return ngettext("%(num)s hour", "%(num)s hours", hours) % {"num": hours}
+
+    days = hours // 24
+
+    return ngettext("%(num)s day", "%(num)s days", days) % {"num": humanize(days)}
+
+
 def human_length(seconds):
+    """Exact ISO 8601 timestamp for track playing length"""
 
     minutes, seconds = divmod(int(seconds), 60)
     hours, minutes = divmod(minutes, 60)
