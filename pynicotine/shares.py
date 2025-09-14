@@ -542,6 +542,7 @@ class Scanner:
             self.progress.current_activity = virtual_folder_path
             self.writer.send(self.progress)
 
+            virtual_folder_path_lower = virtual_folder_path.lower()
             file_list = []
 
             try:
@@ -574,11 +575,13 @@ class Scanner:
                             if self.is_hidden(folder_path, basename, entry):
                                 continue
 
+                            virtual_file_path = f"{virtual_folder_path}\\{basename_escaped}"
+                            self.progress.current_activity = virtual_file_path
+                            self.writer.send(self.progress)
+
                             file_stat = entry.stat()
                             file_index = self.progress.current_file_index
                             self.mtimes[path] = file_mtime = file_stat.st_mtime
-                            virtual_file_path = f"{virtual_folder_path}\\{basename_escaped}"
-                            virtual_folder_path_lower = virtual_folder_path.lower()
 
                             if not self.rebuild and file_mtime == old_mtimes.get(path) and path in old_files:
                                 full_path_file_data = old_files[path]
