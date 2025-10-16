@@ -716,7 +716,7 @@ class NetworkThread(Thread):
 
         except Exception as error:
             log.add_debug("Unable to parse %s message type %s, size %s, contents %s. Error: %s",
-                          (conn_type, msg_class, msg_size, msg_content, error))
+                          (conn_type, msg_class, msg_size, bytes(msg_content), error))
 
         finally:
             msg.finish_parsing()
