@@ -291,7 +291,10 @@ class BasePlugin:
         command_interface, source = self.parent.command_source
 
         if command_interface == "cli":
-            print(text)
+            timestamp_format = None
+            events.emit("log-message", timestamp_format, text, "", None)
+            #events.emit_main_thread("log-message", timestamp_format, text, "", None)
+            #print(text)
             return
 
         func = self.echo_public if command_interface == "chatroom" else self.echo_private
