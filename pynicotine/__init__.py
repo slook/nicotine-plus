@@ -67,6 +67,10 @@ def check_arguments():
         help=_("start the program in headless mode (no GUI)")
     )
     parser.add_argument(
+        "-t", "--tui", action="store_true",
+        help=_("start experimental text user interface (TermTk TUI)")
+    )
+    parser.add_argument(
         "-v", "--version", action="version", version=f"{__application_name__} {__version__}",
         help=_("display version and exit")
     )
@@ -87,7 +91,7 @@ def check_arguments():
     gui_argv = None
     multi_instance = False
 
-    if args.headless:
+    if args.headless or args.tui:
         # Show error about unrecognized arguments immediately
         args = parser.parse_args()
     else:
@@ -107,7 +111,7 @@ def check_arguments():
     core.cli_listen_port = args.port
     core.cli_rescanning = args.rescan
 
-    return gui_argv, args.hidden, args.ci_mode, args.isolated, args.rescan, multi_instance
+    return gui_argv, args.tui, args.hidden, args.ci_mode, args.isolated, args.rescan, multi_instance
 
 
 def check_python_version():
@@ -192,7 +196,7 @@ def run():
     set_up_python()
     rename_process(b"nicotine")
 
-    gui_argv, hidden, ci_mode, isolated_mode, rescan, multi_instance = check_arguments()
+    gui_argv, tui, hidden, ci_mode, isolated_mode, rescan, multi_instance = check_arguments()
     error = check_python_version()
 
     if error:
@@ -206,6 +210,14 @@ def run():
     if gui_argv:
         from pynicotine import gtkgui as application
         exit_code = application.run(gui_argv, hidden, ci_mode, isolated_mode, multi_instance)
+
+        if exit_code is not None:
+            return exit_code
+
+    # Initialize TTk-based TUI
+    elif tui:
+        from pynicotine import ttktui as application
+        exit_code = application.run(ci_mode, isolated_mode)
 
         if exit_code is not None:
             return exit_code

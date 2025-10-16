@@ -92,6 +92,98 @@ class Connection:
     out_buffer: bytearray = field(default_factory=bytearray)
     last_active: float = field(default_factory=time.monotonic)
 
+    def _in_buffer_trim_trace(self, idx=None):
+        """DEBUG BufferError: Existing exports of data: object cannot be re-sized"""
+
+        try:
+            del self.in_buffer[:idx or len(self.in_buffer)]
+
+        except BufferError as error:
+            import gc
+            import types
+
+            total = len(self.in_buffer)
+            refs = gc.get_referrers(self.in_buffer)
+            objects = []
+
+            for ref in refs:
+                if type(ref).__name__ != "managedbuffer":
+                    continue
+                for mv in gc.get_referrers(ref):
+                    if type(mv).__name__ != "memoryview":
+                        continue
+                    owners = []
+                    for o in gc.get_referrers(mv):
+                        if isinstance(o, types.FrameType):
+                            # What keeps this frame alive?
+                            holders = [
+                                type(h).__name__ for h in gc.get_referrers(o)
+                                if not isinstance(h, (list, dict))
+                            ]
+                            owners.append(
+                                f"frame:{o.f_code.co_name}:{o.f_lineno} "
+                                f"locals={sorted(o.f_locals)} "
+                                f"held_by={holders}")
+                        elif isinstance(o, types.TracebackType):
+                            owners.append(
+                                f"traceback:{o.tb_frame.f_code.co_name}:"
+                                f"{o.tb_lineno}")
+                        elif not isinstance(o, (list, dict)):
+                            owners.append(type(o).__name__)
+                    objects.append((len(mv), owners))
+
+            self.in_buffer = self.in_buffer[idx or len(self.in_buffer):]
+
+            log.add_conn(
+                "Failed to clear connection %(addr)s input buffer refs still"
+                " in memory <%(refs)s> copied %(size)s B of %(total)s B instead."
+                " Error: %(error)s. Retained memoryviews: %(objects)s",
+                {
+                    "addr": self.addr,
+                    "refs": [type(r).__name__ for r in refs],
+                    "size": len(self.in_buffer),
+                    "total": total,
+                    "error": error,
+                    "objects": objects
+                }
+            )
+
+    def in_buffer_trim(self, idx):
+
+        try:
+            del self.in_buffer[:idx]
+
+        except BufferError as error:
+            total = len(self.in_buffer)
+            self.in_buffer = self.in_buffer[idx:]
+            log.add_conn("Failed to purge connection %(addr)s input buffer leaked %(total)s B,"
+                         " copied %(size)s B instead. Error: %(error)s",
+                         {"addr": self.addr, "total": total, "size": len(self.in_buffer), "error": error})
+
+    def in_buffer_clear(self):
+
+        try:
+            self.in_buffer.clear()
+
+        except BufferError as error:
+            total = len(self.in_buffer)
+            self.in_buffer = bytearray()
+            log.add_conn("Failed to clear connection %(addr)s input buffer leaked %(total)s B,"
+                         " created new empty buffer instead. Error: %(error)s",
+                         {"addr": self.addr, "total": total, "error": error})
+
+    def out_buffer_clear(self):
+
+        try:
+            self.out_buffer.clear()
+
+        except BufferError as error:
+            total = len(self.out_buffer)
+            self.out_buffer = bytearray()
+            log.add_conn("Failed to clear connection %(addr)s output buffer leaked %(total)s B,"
+                         " created new empty buffer instead. Error: %(error)s",
+                         {"addr": self.addr, "total": total, "error": error})
+
 
 @dataclass(slots=True, eq=False, kw_only=True)
 class ServerConnection(Connection):
@@ -989,13 +1081,8 @@ class NetworkThread(Thread):
         self._num_sockets -= 1
 
         conn.sock = None
-
-        try:
-            conn.in_buffer.clear()
-            conn.out_buffer.clear()
-
-        except BufferError as error:
-            log.add_conn("Failed to clear connection buffers: %s", error)
+        conn.in_buffer_clear()
+        conn.out_buffer_clear()
 
         if not isinstance(conn, PeerConnection):
             return
@@ -1542,7 +1629,9 @@ class NetworkThread(Thread):
             buffer_len -= msg_size_total
 
         if idx:
-            del in_buffer[:idx]
+            # del in_buffer[:idx]
+            # conn.in_buffer = in_buffer[idx:]
+            conn.in_buffer_trim(idx)
 
     def _process_server_output(self, conn, msg):
 
@@ -1762,7 +1851,9 @@ class NetworkThread(Thread):
             return None
 
         if idx:
-            del in_buffer[:idx]
+            # del in_buffer[:idx]
+            # conn.in_buffer = in_buffer[idx:]
+            conn.in_buffer_trim(idx)
 
         conn.init = init
 
@@ -1959,7 +2050,9 @@ class NetworkThread(Thread):
             buffer_len -= msg_size_total
 
         if idx:
-            del in_buffer[:idx]
+            # del in_buffer[:idx]
+            # conn.in_buffer = in_buffer[idx:]
+            conn.in_buffer_trim(idx)
             conn.has_post_init_activity = True
 
         if search_result_received and not self._is_connection_still_active(conn):
@@ -2201,7 +2294,9 @@ class NetworkThread(Thread):
             idx = self._process_file_offset_message(conn, in_buffer)
 
         if idx:
-            del in_buffer[:idx]
+            # del in_buffer[:idx]
+            # conn.in_buffer = in_buffer[idx:]
+            conn.in_buffer_trim(idx)
             conn.has_post_init_activity = True
 
     def _process_file_output(self, conn, msg):
@@ -2580,7 +2675,9 @@ class NetworkThread(Thread):
             buffer_len -= msg_size_total
 
         if idx:
-            del in_buffer[:idx]
+            # del in_buffer[:idx]
+            # conn.in_buffer = in_buffer[idx:]
+            conn.in_buffer_trim(idx)
             conn.has_post_init_activity = True
 
     def _process_distrib_output(self, conn, msg, msg_content=None):
@@ -2685,9 +2782,12 @@ class NetworkThread(Thread):
                 self._process_conn_incoming_messages(conn)
                 return
 
-        except OSError as error:
-            log.add_conn("Cannot read data from connection %s, closing connection. "
-                         "Error: %s", (conn.addr, error))
+        except (BufferError, OSError) as error:
+            log.add_conn(
+                "Cannot read data from connection %(addr)s input buffer at %(total)s B,"
+                " closing connection. Error: %(error)s",
+                {"addr": conn.addr, "total": len(conn.in_buffer), "error": error}
+            )
             conn_error = error
 
         if not conn.is_established:
@@ -2973,6 +3073,12 @@ class NetworkThread(Thread):
 
         try:
             self._loop()
+
+        except BaseException:
+            import traceback
+            with open('slskproto_exc.log', 'a') as f:
+                f.write(''.join(traceback.format_exc()) + '\n---\n')
+            raise
 
         finally:
             # Networking thread aborted

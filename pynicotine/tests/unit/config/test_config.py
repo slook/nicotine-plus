@@ -27,7 +27,7 @@ class ConfigTest(TestCase):
 
         shutil.copy(default_config_path, config.config_file_path)
 
-        core.init_components(enabled_components={})
+        core.init_components()
 
     def tearDown(self):
         core.quit()

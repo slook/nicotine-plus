@@ -1,0 +1,138 @@
+# MIT License
+#
+# Copyright (c) 2021 Eugenio Parodi <ceccopierangiolieugenio AT googlemail DOT com>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+__all__ = ['TTkMenuBarButton', 'TTkMenuBarLayout']
+
+from typing import Any, Dict, List
+
+from TermTk.TTkCore.constant import TTkK
+from TermTk.TTkCore.helper import TTkHelper
+from TermTk.TTkCore.color import TTkColor
+# from TermTk.TTkCore.log import TTkLog
+from TermTk.TTkCore.signal import pyTTkSignal, pyTTkSlot
+from TermTk.TTkCore.string import TTkString
+from TermTk.TTkLayouts.layout import TTkLayout
+from TermTk.TTkLayouts.boxlayout import TTkHBoxLayout
+from TermTk.TTkWidgets.menu import TTkMenuButton
+
+class TTkMenuBarButton(TTkMenuButton):
+    classStyle:Dict[str,Dict[str,Any]] = TTkMenuButton.classStyle | {
+                'default': TTkMenuButton.classStyle['default'] |
+                           {'borderColor':TTkColor.RST,
+                            #'glyphs':('┠','─','┨','┄','┄','▶')},
+                            #'glyphs':('┠','─','┨','┄','┄','▶')},
+                            'glyphs':('┎','─','┒','┄','┄','▶')},
+                            #'glyphs':('┖','─','┚','┄','┄','▶')},
+                            #'glyphs':('╰','─','╯','┄','┄','▶')},
+
+                'hover': TTkMenuButton.classStyle['hover'] |
+                           {#'borderColor':TTkColor.RST,
+                            'glyphs':('┠','─','┨','┄','┄','▶')},
+                            #'glyphs':('┎','─','┒','┄','┄','▶')},
+                            #'glyphs':('┖','─','┚','┄','┄','▶')},
+                            #'glyphs':('╰','─','╯','┄','┄','▶')},
+
+                'highlighted': TTkMenuButton.classStyle['highlighted'] |
+                           {'color': TTkColor.BOLD,
+                            #'glyphs':('┠','─','┨','┄','┄','▶')},
+                            'glyphs':('┎','─','┒','┄','┄','▶')},
+                            #'glyphs':('┖','─','┚','┄','┄','▶')},
+                            #'glyphs':('╰','─','╯','┄','┄','▶')},
+
+                'clicked': TTkMenuButton.classStyle['clicked'] |
+                           {'color': TTkColor.fg('#000000') + TTkColor.bg('#0088FF') + TTkColor.BOLD,
+                            'glyphs':('┠','─','┨','┄','┄','▶')},
+
+            }
+
+    __slots__ = ()
+    def __init__(self, *,
+                 text:TTkString=TTkString(),
+                 data:object=None,
+                 checkable:bool=False,
+                 checked:bool=False,
+                 **kwargs) -> None:
+        super().__init__(text=text, data=data, checkable=checkable, checked=checked, **kwargs)
+        self.setCheckable(self.isCheckable())
+
+    def setCheckable(self, ch):
+        txtlen = self.text().termWidth()
+        self.resize(txtlen+4,1)
+        self.setMinimumSize(txtlen+4,1)
+        self.setMaximumSize(txtlen+4,1)
+        return super().setCheckable(ch)
+
+    def paintEvent(self, canvas):
+        style = self.currentStyle()
+        borderColor = style['borderColor']
+        glyphs      = style['glyphs']
+        textColor   = style['color']
+
+        if self._checkable:
+            text = ('▣ ' if self._checked else '□ ') + self.text()  # + ' '
+        else:
+            text = self.text()
+
+        canvas.drawText(pos=(0,0), color=borderColor ,text=glyphs[1]+glyphs[2])
+        canvas.drawText(pos=(2+text.termWidth(),0), color=borderColor ,text=glyphs[0]+glyphs[1])
+        canvas.drawText(pos=(2,0), color=textColor ,text=text)
+
+
+class TTkMenuBarLayout(TTkHBoxLayout):
+    '''TTkMenuBarLayout'''
+    __slots__ = ('_itemsLeft', '_itemsCenter', '_itemsRight', '_buttons')
+    _buttons:List[TTkMenuBarButton]
+    def __init__(self, **kwargs) -> None:
+        self._buttons = []
+        super().__init__(**kwargs)
+        self._itemsLeft   = TTkHBoxLayout()
+        self._itemsCenter = TTkHBoxLayout()
+        self._itemsRight  = TTkHBoxLayout()
+        self.addItem(self._itemsLeft)
+        self.addItem(TTkLayout())
+        self.addItem(self._itemsCenter)
+        self.addItem(TTkLayout())
+        self.addItem(self._itemsRight)
+
+    def addMenu(self,text:TTkString, data:object=None, checkable:bool=False, checked:bool=False, alignment=TTkK.LEFT_ALIGN):
+        '''addMenu'''
+        button = TTkMenuBarButton(text=text, data=data, checkable=checkable, checked=checked)
+        self._mbItems(alignment).addWidget(button)
+        self._buttons.append(button)
+        self.update()
+        return button
+
+    def _menus(self, alignment=TTkK.LEFT_ALIGN):
+        return [w.widget() for w in self._mbItems(alignment).children()]
+
+    def _mbItems(self, alignment=TTkK.LEFT_ALIGN):
+        return {
+            TTkK.LEFT_ALIGN:   self._itemsLeft   ,
+            TTkK.CENTER_ALIGN: self._itemsCenter ,
+            TTkK.RIGHT_ALIGN:  self._itemsRight
+        }.get(alignment, self._itemsLeft)
+
+    def clear(self):
+        self._buttons = []
+        self._itemsLeft.removeItems(self._itemsLeft.children())
+        self._itemsCenter.removeItems(self._itemsCenter.children())
+        self._itemsRight.removeItems(self._itemsRight.children())
