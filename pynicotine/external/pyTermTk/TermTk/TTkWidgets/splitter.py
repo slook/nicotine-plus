@@ -1,0 +1,735 @@
+# MIT License
+#
+# Copyright (c) 2021 Eugenio Parodi <ceccopierangiolieugenio AT googlemail DOT com>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+__all__ = ['TTkSplitter']
+
+from typing import Union,List,Optional
+
+from TermTk.TTkCore.constant import TTkK
+from TermTk.TTkCore.cfg import TTkCfg
+from TermTk.TTkCore.canvas import TTkCanvas
+from TermTk.TTkCore.color import TTkColor
+from TermTk.TTkCore.string import TTkString, TTkStringType
+from TermTk.TTkCore.TTkTerm.inputmouse import TTkMouseEvent
+
+from TermTk.TTkLayouts.layout import TTkLayout
+from TermTk.TTkWidgets.widget import TTkWidget
+from TermTk.TTkWidgets.container import TTkContainer
+
+class TTkSplitter(TTkContainer):
+    '''TTkSplitter:
+
+    A container widget that arranges child widgets with adjustable splitter bars.
+
+    ::
+
+        Horizontal Splitter:
+        ┌─────────╥─────────╥─────────┐
+        │ Widget1 ║ Widget2 ║ Widget3 │
+        │         ║         ║         │
+        └─────────╨─────────╨─────────┘
+
+        Vertical Splitter:
+        ┌──────────────────────────────────┐
+        │          Widget 1                │
+        ╞══════════════════════════════════╡
+        │          Widget 2                │
+        ╞══════════════════════════════════╡
+        │          Widget 3                │
+        └──────────────────────────────────┘
+
+    The splitter allows users to redistribute space between child widgets by dragging
+    the splitter bars. Widgets can have fixed or proportional sizes.
+
+    Demo: `splitter.py <https://github.com/ceccopierangiolieugenio/pyTermTk/blob/main/demo/showcase/splitter.py>`_
+    (`online <https://ceccopierangiolieugenio.github.io/pyTermTk-Docs/sandbox/sandbox.html?filePath=demo/showcase/splitter.py>`__)
+
+    .. code-block:: python
+
+        import TermTk as ttk
+
+        root = ttk.TTk(layout=ttk.TTkGridLayout())
+
+        splitter = ttk.TTkSplitter(parent=root, orientation=ttk.TTkK.HORIZONTAL)
+        splitter.addWidget(ttk.TTkTestWidgetSizes(border=True), size=20)
+        splitter.addWidget(ttk.TTkTestWidgetSizes(border=True))
+        splitter.addWidget(ttk.TTkTestWidgetSizes(border=True), size=30)
+
+        root.mainloop()
+    '''
+
+    classStyle = {
+                'default':     {'glyphs' : {
+                                    TTkK.VERTICAL   : ('╞','═','╡'),
+                                    TTkK.HORIZONTAL : ('╥','║','╨') },
+                                'color': TTkColor.fgbg("#dddddd","#222222"),
+                                'borderColor': TTkColor.fg("#8888aa") },
+                'disabled':    {'color': TTkColor.fg('#888888'),
+                                'borderColor':TTkColor.fg('#888888')},
+                'focus':       {'color': TTkColor.fgbg("#ffddff","#222222"),
+                                'borderColor': TTkColor.fg("#ffffaa")},
+                'hover':       {'borderColor': TTkColor.fg("#FFAA40")}
+            }
+
+    __slots__ = (
+        '_orientation', '_separators', '_refSizes',
+        '_items', '_titles', '_separatorSelected',
+        '_border')
+    _items:List[Union[TTkWidget,TTkLayout]]
+    _titles:List[Optional[TTkString]]
+    _separators:List[int]
+    _refSizes:List[Optional[int]]
+    '''Reference sizes for each widget in the splitter'''
+    _separatorSelected:Optional[int]
+    def __init__(self, *,
+                 border:bool=False,
+                 orientation:TTkK.Direction=TTkK.HORIZONTAL,
+                 **kwargs) -> None:
+        ''' Initialize the splitter
+
+        :param border: Draw a border around the splitter, defaults to False
+        :type border: bool, optional
+        :param orientation: Splitter orientation (:py:class:`TTkK.Direction.HORIZONTAL` or :py:class:`TTkK.Direction.VERTICAL`), defaults to :py:class:`TTkK.Direction.HORIZONTAL`
+        :type orientation: :py:class:`TTkK.Direction`, optional
+        '''
+        self._items = []
+        self._titles = []
+        self._separators = []
+        self._refSizes = []
+        self._border = border
+        self._orientation = orientation
+        self._separatorSelected = None
+        super().__init__(**kwargs)
+        self.setBorder(border)
+        self.setFocusPolicy(TTkK.ClickFocus)
+
+        class _SplitterLayout(TTkLayout):
+            def insertWidget(_, index, widget):
+                self.insertWidget(index, widget)
+            def addWidget(_, widget):
+                self.addWidget(widget)
+            def inserItem(_, item):
+                self.inserItem(item)
+            def addItem(_, item):
+                self.addItem(item)
+        self.setLayout(_SplitterLayout())
+
+    def setBorder(self, border:bool) -> None:
+        ''' Set whether to draw a border around the splitter
+
+        :param border: True to show border, False to hide
+        :type border: bool
+        '''
+        self._border = border
+        if border: self.setPadding(1,1,1,1)
+        else:      self.setPadding(0,0,0,0)
+        self.update()
+
+    def border(self) -> bool:
+        ''' Get the current border state
+
+        :return: True if border is visible, False otherwise
+        :rtype: bool
+        '''
+        return self._border
+
+    def orientation(self) -> TTkK.Direction:
+        ''' Get the current splitter orientation
+
+        :return: The orientation (HORIZONTAL or VERTICAL)
+        :rtype: :py:class:`TTkK.Direction`
+        '''
+        return self._orientation
+
+    def setOrientation(self, orientation:TTkK.Direction) -> None:
+        ''' Set the splitter orientation
+
+        :param orientation: The new orientation (HORIZONTAL or VERTICAL)
+        :type orientation: :py:class:`TTkK.Direction`
+        '''
+        if orientation == self._orientation: return
+        if orientation not in (TTkK.HORIZONTAL, TTkK.VERTICAL): return
+        self._orientation = orientation
+        w,h = self.size()
+        b = 2 if self._border else 0
+        self._processRefSizes(w-b,h-b)
+        self._updateGeometries()
+
+    def clean(self) -> None:
+        ''' Remove all widgets and items from the splitter '''
+        for _i in reversed(self._items):
+            if isinstance(_i,TTkWidget):
+                self.removeWidget(_i)
+            else:
+                self.removeItem(_i)
+
+    def count(self) -> int:
+        ''' Get the number of items in the splitter
+
+        :return: The count of widgets/items
+        :rtype: int
+        '''
+        return len(self._items)
+
+    def indexOf(self, widget:Union[TTkWidget,TTkLayout]) -> int:
+        ''' Get the index of a widget or layout in the splitter
+
+        :param widget: The widget or layout to find
+        :type widget: :py:class:`TTkWidget` or :py:class:`TTkLayout`
+
+        :return: The index of the item
+        :rtype: int
+        '''
+        return self._items.index(widget)
+
+    def widget(self, index:int) -> Union[TTkWidget,TTkLayout]:
+        ''' Get the widget or layout at the specified index
+
+        :param index: The index of the item
+        :type index: int
+
+        :return: The widget or layout at the index
+        :rtype: :py:class:`TTkWidget` or :py:class:`TTkLayout`
+        '''
+        return self._items[index]
+
+    def replaceItem(self, index:int, item:TTkLayout, title:Optional[TTkStringType]=None) -> None:
+        ''' Replace the layout at the specified index
+
+        :param index: The index to replace at
+        :type index: int
+        :param item: The new layout
+        :type item: :py:class:`TTkLayout`
+        :param title: Optional title for the item, defaults to None
+        :type title: str, :py:class:`TTkString`, optional
+        '''
+        if index >= len(self._items):
+            return self.addItem(item, title=title)
+        TTkLayout.removeItem(self.layout(), self._items[index])
+        TTkLayout.insertItem(self.layout(), index, item)
+        self._items[index] = item
+        self._titles[index] = title if isinstance(title,TTkString) else TTkString(title) if isinstance(title,str) else TTkString()
+        w,h = self.size()
+        b = 2 if self._border else 0
+        self._processRefSizes(w-b,h-b)
+        self._updateGeometries()
+
+    def replaceWidget(self, index:int, widget:TTkWidget, title:Optional[str]=None) -> None:
+        ''' Replace the widget at the specified index
+
+        :param index: The index to replace at
+        :type index: int
+        :param widget: The new widget
+        :type widget: :py:class:`TTkWidget`
+        :param title: Optional title for the widget, defaults to None
+        :type title: str, :py:class:`TTkString`, optional
+        '''
+        if index >= len(self._items):
+            return self.addWidget(widget, title=title)
+        TTkLayout.removeWidget(self.layout(), self._items[index])
+        TTkLayout.insertWidget(self.layout(), index, widget)
+        self._items[index] = widget
+        self._titles[index] = TTkString(title) if title else None
+        w,h = self.size()
+        b = 2 if self._border else 0
+        self._processRefSizes(w-b,h-b)
+        self._updateGeometries()
+
+    def removeItem(self, item:TTkLayout) -> None:
+        ''' Remove a layout from the splitter
+
+        :param item: The layout to remove
+        :type item: :py:class:`TTkLayout`
+        '''
+        index = self.indexOf(item)
+        self._items.pop(index)
+        self._refSizes.pop(index)
+        self._separators.pop(index)
+        TTkLayout.removeItem(self.layout(), item)
+        w,h = self.size()
+        b = 2 if self._border else 0
+        self._processRefSizes(w-b,h-b)
+        self._updateGeometries()
+
+    def removeWidget(self, widget:TTkWidget) -> None:
+        ''' Remove a widget from the splitter
+
+        :param widget: The widget to remove
+        :type widget: :py:class:`TTkWidget`
+        '''
+        index = self.indexOf(widget)
+        self._items.pop(index)
+        self._refSizes.pop(index)
+        self._separators.pop(index)
+        TTkLayout.removeWidget(self.layout(), widget)
+        w,h = self.size()
+        b = 2 if self._border else 0
+        self._processRefSizes(w-b,h-b)
+        self._updateGeometries()
+
+    def addItem(self, item:TTkLayout, size:Optional[int]=None, title:Optional[TTkStringType]=None) -> None:
+        ''' Add a layout to the end of the splitter
+
+        :param item: The layout to add
+        :type item: :py:class:`TTkLayout`
+        :param size: Fixed size for the item in characters, defaults to None (proportional)
+        :type size: int, optional
+        :param title: Optional title for the item, defaults to None
+        :type title: str, :py:class:`TTkString`, optional
+        '''
+        self.insertItem(len(self._items), item, size=size, title=title)
+
+    def insertItem(self, index:int, item:TTkLayout, size:Optional[int]=None, title:Optional[TTkStringType]=None) -> None:
+        ''' Insert a layout at the specified index
+
+        :param index: The index to insert at
+        :type index: int
+        :param item: The layout to insert
+        :type item: :py:class:`TTkLayout`
+        :param size: Fixed size for the item in characters, defaults to None (proportional)
+        :type size: int, optional
+        :param title: Optional title for the item, defaults to None
+        :type title: str, :py:class:`TTkString`, optional
+        '''
+        TTkLayout.insertItem(self.layout(), index, item)
+        self._insertWidgetItem(index, item, size=size, title=title)
+
+    def addWidget(self, widget:TTkWidget, size:Optional[int]=None, title:Optional[TTkStringType]=None) -> None:
+        ''' Add a widget to the end of the splitter
+
+        :param widget: The widget to add
+        :type widget: :py:class:`TTkWidget`
+        :param size: Fixed size for the widget in characters, defaults to None (proportional)
+        :type size: int, optional
+        :param title: Optional title for the widget, defaults to None
+        :type title: str, :py:class:`TTkString`, optional
+        '''
+        self.insertWidget(len(self._items), widget, size=size, title=title)
+
+    def insertWidget(self, index:int, widget:TTkWidget, size:Optional[int]=None, title:Optional[TTkStringType]=None) -> None:
+        ''' Insert a widget at the specified index
+
+        :param index: The index to insert at
+        :type index: int
+        :param widget: The widget to insert
+        :type widget: :py:class:`TTkWidget`
+        :param size: Fixed size for the widget in characters, defaults to None (proportional)
+        :type size: int, optional
+        :param title: Optional title for the widget, defaults to None
+        :type title: str, :py:class:`TTkString`, optional
+        '''
+        TTkLayout.insertWidget(self.layout(), index, widget)
+        self._insertWidgetItem(index, widget, size=size, title=title)
+
+    def _insertWidgetItem(self, index:int, widgetItem:Union[TTkWidget,TTkLayout], size:Optional[int]=None, title:Optional[TTkStringType]=None) -> None:
+        ''' Internal method to insert a widget or layout item
+
+        :param index: The index to insert at
+        :type index: int
+        :param widgetItem: The widget or layout to insert
+        :type widgetItem: :py:class:`TTkWidget` or :py:class:`TTkLayout`
+        :param size: Fixed size for the item, defaults to None
+        :type size: int, optional
+        :param title: Optional title, defaults to None
+        :type title: str, :py:class:`TTkString`, optional
+        '''
+        self._items.insert(index, widgetItem)
+        self._titles.insert(index, title if isinstance(title,TTkString) else TTkString(title) if isinstance(title,str) else None)
+
+        # assign the same slice to all the widgets
+        self._refSizes.insert(index, size)
+        w,h = self.size()
+        b = 2 if self._border else 0
+        self._processRefSizes(w-b,h-b)
+        self._updateGeometries()
+        if self.parentWidget():
+            self.parentWidget().update(repaint=True, updateLayout=True)
+
+    def setSizes(self, sizes:List[Optional[int]]) -> None:
+        ''' Set the sizes for all widgets in the splitter
+
+        :param sizes: List of sizes in characters (None for proportional sizing)
+        :type sizes: list of int or None
+        '''
+        ls = len(self._separators)
+        sizes=sizes[:ls]+[None]*max(0,ls-len(sizes))
+        self._refSizes = sizes.copy()
+        w,h = self.size()
+        b = 2 if self._border else 0
+        self._processRefSizes(w-b,h-b)
+        self._updateGeometries()
+
+    def _minMaxSizeBefore(self, index:int) -> tuple[int,int]:
+        ''' Calculate minimum and maximum sizes before the selected separator
+
+        :param index: The separator index
+        :type index: int
+
+        :return: Tuple of (minimum_size, maximum_size)
+        :rtype: tuple[int,int]
+        '''
+        if self._separatorSelected is None:
+            return 0, 0x1000
+        # this is because there is a hidden splitter at position -1
+        minsize = -1
+        maxsize = -1
+        for i in range(self._separatorSelected+1):
+            item = self._items[i]
+            minsize += item.minDimension(self._orientation)+1
+            maxsize += item.maxDimension(self._orientation)+1
+        return minsize, maxsize
+
+    def _minMaxSizeAfter(self, index:int) -> tuple[int,int]:
+        ''' Calculate minimum and maximum sizes after the selected separator
+
+        :param index: The separator index
+        :type index: int
+
+        :return: Tuple of (minimum_size, maximum_size)
+        :rtype: tuple[int,int]
+        '''
+        if self._separatorSelected is None:
+            return 0, 0x1000
+        minsize = 0x0
+        maxsize = 0x0
+        for i in range(self._separatorSelected+1, len(self._separators)):
+            item = self._items[i]
+            minsize += item.minDimension(self._orientation)+1
+            maxsize += item.maxDimension(self._orientation)+1
+        return minsize, maxsize
+
+    def _updateGeometries(self, resized:bool=False) -> None:
+        ''' Internal method to update widget geometries based on splitter positions
+
+        :param resized: True if called from resize event, defaults to False
+        :type resized: bool, optional
+        '''
+        if not self.isVisible() or not self._items: return
+        w,h = self.size()
+        if w==h==0: return
+        sep = self._separators = self._separators[0:len(self._items)]
+        if self._border:
+            w-=2
+            h-=2
+
+        def _processGeometry(index, forward):
+            item = self._items[index]
+            pa = -1 if index==0 else sep[index-1]
+            pb = sep[index]
+
+            if self._orientation == TTkK.HORIZONTAL:
+                newPos = pa+1
+                size = w-newPos
+            else:
+                newPos = pa+1
+                size = h-newPos
+
+            if i<=len(sep)-2: # this is not the last widget
+                size = pb-newPos
+                maxsize = item.maxDimension(self._orientation)
+                minsize = item.minDimension(self._orientation)
+                if   size > maxsize: size = maxsize
+                elif size < minsize: size = minsize
+                if forward:
+                    sep[index]=pa+size+1
+                elif i>0 :
+                    sep[index-1]=pa=pb-size-1
+
+            if self._orientation == TTkK.HORIZONTAL:
+                item.setGeometry(pa+1,0,size,h)
+            else:
+                item.setGeometry(0,pa+1,w,size)
+            pass
+
+
+        selected = 0
+        if self._orientation == TTkK.HORIZONTAL:
+            size = w
+        else:
+            size = h
+        if self._separatorSelected is not None:
+            selected = self._separatorSelected
+            sepPos = sep[selected]
+            minsize,maxsize = self._minMaxSizeBefore(selected)
+            # TTkLog.debug(f"before:{minsize,maxsize}")
+            if sepPos > maxsize: sep[selected] = maxsize
+            if sepPos < minsize: sep[selected] = minsize
+            minsize,maxsize = self._minMaxSizeAfter(selected)
+            # TTkLog.debug(f"after:{minsize,maxsize}")
+            if sepPos < size-maxsize: sep[selected] = size-maxsize
+            if sepPos > size-minsize: sep[selected] = size-minsize
+
+        if resized:
+            l = len(sep)
+            for i in reversed(range(l)):
+                _processGeometry(i, False)
+            for i in range(l):
+                _processGeometry(i, True)
+        else:
+            for i in reversed(range(selected+1)):
+                _processGeometry(i, False)
+            for i in range(selected+1, len(sep)):
+                _processGeometry(i, True)
+
+        if self._separatorSelected is not None:
+            s:List[Optional[int]] = [ b-a for a,b in zip([0]+self._separators,self._separators)]
+            self._refSizes = s
+        self.update()
+
+    def _processRefSizes(self, w:int, h:int) -> None:
+        ''' Process reference sizes and calculate separator positions
+
+        This method handles both fixed and proportional widget sizing:
+
+        - When :py:attr:`_refSizes` contains None values, remaining space is distributed proportionally
+        - When all sizes are fixed, they are scaled to fit the available space
+        - The last widget always receives any remaining space to prevent rounding errors
+
+        :param w: Available width
+        :type w: int
+        :param h: Available height
+        :type h: int
+        '''
+        self._separatorSelected = None
+        if self._orientation == TTkK.HORIZONTAL:
+            sizeRef = w
+        else:
+            sizeRef = h
+        if sizeRef==0:
+            self._separators = [0]*len(self._items)
+            return
+
+        # get the sum of the fixed sizes
+        if None in self._refSizes:
+            fixSize = sum(filter(None, self._refSizes))
+            numVarSizes = len([x for x in self._refSizes if x is None])
+            avalSize = sizeRef-fixSize
+            varSize = avalSize//numVarSizes
+            sizes:List[int] = []
+            for s in self._refSizes:
+                if s is None:
+                    avalSize -= varSize
+                    newSize = varSize + avalSize if avalSize<varSize else 0
+                    sizes.append(newSize)
+                else:
+                    sizes.append(s)
+            sizes = [varSize if s is None else s for s in self._refSizes]
+        else:
+            sizes = [s for s in self._refSizes if s is not None]
+            sizeRef = sum(sizes)
+        self._separators = [sum(sizes[:i+1]) for i in range(len(sizes))]
+
+        # Adjust separators to the new size;
+        if sizeRef > 0:
+            if self._orientation == TTkK.HORIZONTAL:
+                diff = w/sizeRef
+            else:
+                diff = h/sizeRef
+            self._separators = [int(i*diff) for i in self._separators]
+
+    def resizeEvent(self, w:int, h:int) -> None:
+        ''' Handle resize events and update widget geometries
+
+        This method recalculates all separator positions and widget sizes
+        when the splitter is resized, maintaining the proportional or fixed
+        size relationships defined by :py:meth:`setSizes` or drag operations.
+
+        :param w: New width
+        :type w: int
+        :param h: New height
+        :type h: int
+        '''
+        b = 2 if self._border else 0
+        self._processRefSizes(w-b,h-b)
+        self._updateGeometries(resized=True)
+
+    def mousePressEvent(self, evt:TTkMouseEvent) -> bool:
+        self._separatorSelected = None
+        x,y = evt.x, evt.y
+        if self._border:
+            x-=1 ; y-=1
+        # TTkLog.debug(f"{self._separators} {evt}")
+        for i, val in enumerate(self._separators):
+            if self._orientation == TTkK.HORIZONTAL:
+                if x == val:
+                    self._separatorSelected = i
+                    self._updateGeometries()
+            else:
+                if y == val:
+                    self._separatorSelected = i
+                    self._updateGeometries()
+        return self._separatorSelected is not None
+
+    def mouseDragEvent(self, evt:TTkMouseEvent) -> bool:
+        if self._separatorSelected is not None:
+            x,y = evt.x, evt.y
+            if self._border:
+                x-=1 ; y-=1
+            if self._orientation == TTkK.HORIZONTAL:
+                self._separators[self._separatorSelected] = x
+            else:
+                self._separators[self._separatorSelected] = y
+            self._updateGeometries()
+            return True
+        return False
+
+    def focusOutEvent(self):
+        self._separatorSelected = None
+
+    def minimumHeight(self) -> int:
+        ''' Get the minimum height required for the splitter
+
+        For vertical splitters, returns the sum of all child minimum heights plus separators.
+        For horizontal splitters, returns the maximum child minimum height.
+
+        :return: The minimum height in characters
+        :rtype: int
+        '''
+        ret = b = 2 if self._border else 0
+        if not self._items: return ret
+        if self._orientation == TTkK.VERTICAL:
+            for item in self._items:
+                ret+=item.minimumHeight()+1
+            ret = max(0,ret-1)
+        else:
+            for item in self._items:
+                ret = max(ret,item.minimumHeight()+b)
+        return ret
+
+    def minimumWidth(self) -> int:
+        ''' Get the minimum width required for the splitter
+
+        For horizontal splitters, returns the sum of all child minimum widths plus separators.
+        For vertical splitters, returns the maximum child minimum width.
+
+        :return: The minimum width in characters
+        :rtype: int
+        '''
+        ret = b = 2 if self._border else 0
+        if not self._items: return ret
+        if self._orientation == TTkK.HORIZONTAL:
+            for item in self._items:
+                ret+=item.minimumWidth()+1
+            ret = max(0,ret-1)
+        else:
+            for item in self._items:
+                ret = max(ret,item.minimumWidth()+b)
+        return ret
+
+    def maximumHeight(self) -> int:
+        ''' Get the maximum height allowed for the splitter
+
+        For vertical splitters, returns the sum of all child maximum heights plus separators.
+        For horizontal splitters, returns the minimum child maximum height.
+
+        :return: The maximum height in characters
+        :rtype: int
+        '''
+        b = 2 if self._border else 0
+        if not self._items: return 0x10000
+        if self._orientation == TTkK.VERTICAL:
+            ret = b
+            for item in self._items:
+                ret+=item.maximumHeight()+1
+            ret = max(b,ret-1)
+        else:
+            ret = 0x10000
+            for item in self._items:
+                ret = min(ret,item.maximumHeight()+b)
+        return ret
+
+    def maximumWidth(self) -> int:
+        ''' Get the maximum width allowed for the splitter
+
+        For horizontal splitters, returns the sum of all child maximum widths plus separators.
+        For vertical splitters, returns the minimum child maximum width.
+
+        :return: The maximum width in characters
+        :rtype: int
+        '''
+        b = 2 if self._border else 0
+        if not self._items: return 0x10000
+        if self._orientation == TTkK.HORIZONTAL:
+            ret = b
+            for item in self._items:
+                ret+=item.maximumWidth()+1
+            ret = max(b,ret-1)
+        else:
+            ret = 0x10000
+            for item in self._items:
+                ret = min(ret,item.maximumWidth()+b)
+        return ret
+
+    def paintEvent(self, canvas:TTkCanvas) -> None:
+        style = self.currentStyle()
+        color = style['color']
+        borderColor = style['borderColor']
+
+        off = 0
+        w,h = self.size()
+
+        if self._border:
+            off= 1
+            canvas.drawBox(pos=(0,0),size=(w,h),color=borderColor)
+
+        glyphs = style['glyphs'][self._orientation]
+        if self._orientation == TTkK.HORIZONTAL:
+            for i in self._separators[:-1]:
+                canvas.drawChar(pos=(i+off,0  ), char=glyphs[0], color=borderColor)
+                canvas.drawChar(pos=(i+off,h-1), char=glyphs[2], color=borderColor)
+                if h>2:
+                    canvas.fill(pos=(i+off,1),size=(1,h-2), char=glyphs[1], color=borderColor)
+
+                # canvas.drawVLine(pos=(i+off,0), size=h,color=borderColor)
+        else:
+            for i in self._separators[:-1]:
+                canvas.drawChar(pos=(0,  i+off), char=glyphs[0], color=borderColor)
+                canvas.drawChar(pos=(w-1,i+off), char=glyphs[2], color=borderColor)
+                if w>2:
+                    canvas.fill(pos=(1,i+off),size=(w-2,1), char=glyphs[1], color=borderColor)
+                # canvas.drawHLine(pos=(0,i+off), size=w,color=borderColor)
+
+        if self._orientation == TTkK.HORIZONTAL and self._border:
+            for i,t in enumerate(self._titles):
+                if not t: continue
+                a = (off + self._separators[i-1]) if i>0 else 0
+                b =  off + self._separators[i]
+                canvas.drawBoxTitle(
+                                pos=(a,0),
+                                size=(b-a+1,1),
+                                text=t,
+                                color=borderColor,
+                                colorText=color)
+        elif self._orientation == TTkK.VERTICAL:
+            for i,t in enumerate(self._titles):
+                if i == 0 and not self._border: continue
+                if not t: continue
+                a = (off + self._separators[i-1]) if i>0 else 0
+                grid = 0 if i == 0 else 5
+                canvas.drawBoxTitle(
+                                pos=(0,a),
+                                size=(w,1),
+                                grid=grid,
+                                text=t,
+                                color=borderColor,
+                                colorText=color)
+
