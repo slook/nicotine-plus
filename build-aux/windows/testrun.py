@@ -43,17 +43,21 @@ def verify_min_macos_version():
     sys.exit(1)
 
 
-def testrun():
+def testrun(tui=False):
     """Verify the packaged application starts and keeps running."""
 
     command = [EXECUTABLE_PATH, "--ci-mode"]
+
+    if tui:
+        print("Also verify the packaged TermTk TUI library starts.")
+        command.append("--tui")
 
     with subprocess.Popen(command) as process:
         try:
             process.wait(timeout=5)
 
         except subprocess.TimeoutExpired:
-            # Success, still running
+            print("Success, still running.\n")
             process.terminate()
             return
 
@@ -63,3 +67,4 @@ def testrun():
 if __name__ == "__main__":
     verify_min_macos_version()
     testrun()
+    testrun(tui=True)
