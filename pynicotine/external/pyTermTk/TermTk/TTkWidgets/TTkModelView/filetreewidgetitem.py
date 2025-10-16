@@ -1,0 +1,82 @@
+# MIT License
+#
+# Copyright (c) 2021 Eugenio Parodi <ceccopierangiolieugenio AT googlemail DOT com>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+__all__ = ['TTkFileTreeWidgetItem']
+
+import re
+
+from TermTk.TTkCore.cfg import TTkCfg
+from TermTk.TTkCore.string import TTkString
+from TermTk.TTkCore.constant import TTkK
+from TermTk.TTkWidgets.TTkModelView.treewidgetitem import TTkTreeWidgetItem
+
+class TTkFileTreeWidgetItem(TTkTreeWidgetItem):
+    FILE = 0x00
+    DIR  = 0x01
+
+    __slots__ = ('_path', '_type', '_raw')
+    def __init__(self, *args,
+                 path:str='.',
+                 type:int=FILE,
+                 raw:list=None,
+                 **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._path   = path
+        self._type   = type
+        self._raw    = raw
+        self.setTextAlignment(1, TTkK.RIGHT_ALIGN)
+
+    def setFilter(self, filter:str) -> None:
+        for c in self.children():
+            c.dataChanged.disconnect(self.emitDataChanged)
+            c._processFilter(filter)
+            c.setFilter(filter)
+            c.dataChanged.connect(self.emitDataChanged)
+        self.dataChanged.emit()
+
+    def _processFilter(self, filter:str) -> None:
+        if self.getType() == TTkFileTreeWidgetItem.FILE:
+            filterRe = '|'.join("^"+f.replace('.',r'\.').replace('*','.*')+"$" for f in filter.split(' ') if f)
+            if re.match(filterRe, self._raw[0]):
+                self.setHidden(False)
+            else:
+                self.setHidden(True)
+
+    def icon(self, col):
+        if col > 0:
+            return super().icon(col)
+        if self._type == TTkFileTreeWidgetItem.FILE:
+            return TTkString( ' '+TTkCfg.theme.fileIcon.getIcon(self._path)+' ', TTkCfg.theme.fileIconColor)
+        else:
+            if self._expanded:
+                return TTkString(' '+TTkCfg.theme.fileIcon.folderOpen+' ', TTkCfg.theme.folderIconColor)
+            else:
+                return TTkString(' '+TTkCfg.theme.fileIcon.folderClose+' ', TTkCfg.theme.folderIconColor)
+
+    def sortData(self, col:int):
+        return self._raw[col]
+
+    def path(self):
+        return self._path
+
+    def getType(self):
+        return self._type
