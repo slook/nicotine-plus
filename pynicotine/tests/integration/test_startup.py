@@ -96,3 +96,20 @@ class StartupTest(TestCase):
 
         output = subprocess.check_output([sys.executable, "-m", "pynicotine", "--version"], timeout=3)
         self.assertIn(b"Nicotine+", output)
+
+    def test_tui_startup(self):
+        """Verify that TermTk TUI startup works."""
+
+        command = [sys.executable, "-m", "pynicotine", f"--config={CONFIG_FILE}", f"--user-data={DATA_FOLDER_PATH}",
+                   "--ci-mode", "--tui"]
+        is_success = False
+
+        with subprocess.Popen(command) as process:
+            try:
+                process.wait(timeout=5)
+
+            except subprocess.TimeoutExpired:
+                is_success = True
+                process.terminate()
+
+        self.assertTrue(is_success)
