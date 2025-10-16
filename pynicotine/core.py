@@ -51,18 +51,15 @@ class Core:
 
         self.enabled_components = set()
 
-    def init_components(self, enabled_components=None, isolated_mode=False):
+    def init_components(self, exclude_components, include_components, isolated_mode=False):
 
         # Enable all components by default
-        if enabled_components is None:
-            enabled_components = {
-                "error_handler", "signal_handler", "cli", "portmapper", "network_thread", "shares", "users",
-                "notifications", "network_filter", "now_playing", "statistics", "port_checker", "update_checker",
-                "search", "downloads", "uploads", "interests", "userbrowse", "userinfo", "buddies",
-                "chatrooms", "privatechat", "pluginhandler"
-            }
-
-        self.enabled_components = enabled_components
+        self.enabled_components = enabled_components = include_components or {
+            "error_handler", "signal_handler", "cli", "portmapper", "network_thread", "shares", "users",
+            "notifications", "network_filter", "now_playing", "statistics", "port_checker", "update_checker",
+            "search", "downloads", "uploads", "interests", "userbrowse", "userinfo", "buddies",
+            "chatrooms", "privatechat", "pluginhandler"
+        } - exclude_components
 
         if "error_handler" in enabled_components:
             self._init_error_handler()
