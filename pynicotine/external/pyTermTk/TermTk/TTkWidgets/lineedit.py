@@ -1,0 +1,516 @@
+# MIT License
+#
+# Copyright (c) 2021 Eugenio Parodi <ceccopierangiolieugenio AT googlemail DOT com>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+__all__ = ['TTkLineEdit']
+
+from enum import IntEnum
+
+from typing import Optional
+
+from TermTk.TTkCore.cfg import TTkCfg
+from TermTk.TTkCore.log import TTkLog
+from TermTk.TTkCore.constant import TTkK
+from TermTk.TTkCore.helper import TTkHelper
+from TermTk.TTkCore.string import TTkString, TTkStringType
+from TermTk.TTkCore.color import TTkColor
+from TermTk.TTkCore.signal import pyTTkSlot, pyTTkSignal
+from TermTk.TTkCore.TTkTerm.inputkey import TTkKeyEvent
+from TermTk.TTkCore.TTkTerm.inputmouse import TTkMouseEvent
+
+from TermTk.TTkGui.clipboard import TTkClipboard
+from TermTk.TTkWidgets.widget import TTkWidget
+
+'''
+     Line Edit: |_________-___________|
+     Text  "abcdefbhijklmnopqrstuvwxyz12345"
+            <------------> Cursor Position
+            <-->           Offset
+'''
+class TTkLineEdit(TTkWidget):
+    ''' TTkLineEdit:
+
+    A single-line text editor widget for user input. (`demo <https://ceccopierangiolieugenio.github.io/pyTermTk-Docs/sandbox/sandbox.html?filePath=demo/showcase/lineedit.py>`__)
+
+    ::
+
+        Standard:  |Hello World________|
+        Password:  |**********_________|
+        Number:    |123.45_____________|
+
+    .. code:: python
+
+        import TermTk as ttk
+
+        root = ttk.TTk()
+
+        # Basic text input
+        edit = ttk.TTkLineEdit(parent=root, pos=(1,1), size=(20,1), text="Hello")
+
+        # Password input
+        password = ttk.TTkLineEdit(parent=root, pos=(1,2), size=(20,1),
+                                   echoMode=ttk.TTkLineEdit.EchoMode.Password)
+
+        # Numeric input
+        number = ttk.TTkLineEdit(parent=root, pos=(1,3), size=(20,1),
+                                inputType=ttk.TTkK.InputType.Input_Number)
+
+        # Connect to signal
+        edit.textEdited.connect(lambda text: ttk.TTkLog.debug(f"Edited: {text}"))
+
+        root.mainloop()
+
+    :param text: Initial text content
+    :type text: :py:class:`TTkString` or str, optional
+    :param hint: Placeholder text shown when empty
+    :type hint: :py:class:`TTkString` or str, optional
+    :param inputType: Input validation type (TTkK.InputType.Input_Text or TTkK.InputType.Input_Number)
+    :type inputType: int, optional
+    :param echoMode: How text is displayed (Normal, NoEcho, Password, PasswordEchoOnEdit)
+    :type echoMode: :py:class:`EchoMode`, optional
+    '''
+
+    class EchoMode(IntEnum):
+        ''' EchoMode:
+
+        Defines how text input is displayed in the line edit.
+        '''
+        Normal             = 0x00
+        '''Display characters as they are entered. This is the default.'''
+        NoEcho             = 0x01
+        '''Do not display anything. This may be appropriate for passwords where even the length of the password should be kept secret.'''
+        Password           = 0x02
+        '''Display asterisks instead of the characters actually entered.'''
+        PasswordEchoOnEdit = 0x03
+        '''Display characters as they are entered while editing otherwise display asterisks.'''
+
+    classStyle = {
+                'default':     {'color':         TTkColor.fgbg("#dddddd","#222244")+TTkColor.BOLD,
+                                'bgcolor':       TTkColor.fgbg("#666666","#222244")+TTkColor.UNDERLINE,
+                                'selectedColor': TTkColor.fgbg("#ffffff","#D38C2D")},
+                'disabled':    {'color':         TTkColor.fg(  "#888888"),
+                                'bgcolor':       TTkColor.fg(  "#444444")+TTkColor.STRIKETROUGH,
+                                'selectedColor': TTkColor.fgbg("#888888","#444444")},
+                'focus':       {'color':         TTkColor.fgbg("#ffffff","#000080")+TTkColor.BOLD,
+                                'bgcolor':       TTkColor.fgbg("#F9AA40","#000080")+TTkColor.BOLD} #+TTkColor.UNDERLINE}
+            }
+
+    __slots__ = (
+        '_text', '_cursorPos', '_offset', '_replace', '_inputType', '_echoMode',
+        '_selectionFrom', '_selectionTo',
+        '_clipboard',
+        '_hint',
+        # Signals
+        'returnPressed', 'textChanged', 'textEdited'     )
+
+    returnPressed:pyTTkSignal
+    '''
+    This signal is emitted when the Return or Enter key is pressed.
+    '''
+
+    textChanged:pyTTkSignal
+    '''
+    This signal is emitted whenever the text changes programmatically or through user input.
+
+    :param text: The new text content
+    :type text: str
+    '''
+
+    textEdited:pyTTkSignal
+    '''
+    This signal is emitted whenever the text is edited by the user (not programmatically).
+
+    :param text: The edited text content
+    :type text: str
+    '''
+
+    _text:TTkString
+    _hint:TTkString
+    _cursorPos:int
+    _inputType:TTkK.InputType
+
+    def __init__(self, *,
+                 text:TTkStringType='',
+                 hint:TTkStringType='',
+                 inputType:TTkK.InputType=TTkK.InputType.Input_Text,
+                 echoMode:EchoMode=EchoMode.Normal,
+                 **kwargs) -> None:
+        # Signals
+        self.returnPressed = pyTTkSignal()
+        self.textChanged =  pyTTkSignal(str)
+        self.textEdited =  pyTTkSignal(str)
+        self._offset = 0
+        self._cursorPos = 0
+        self._selectionFrom = 0
+        self._selectionTo   = 0
+        self._replace=False
+        self._text = text if isinstance(text,TTkString) else TTkString(text)
+        self._hint = hint if isinstance(hint,TTkString) else TTkString(hint)
+        self._inputType = inputType
+        self._echoMode = echoMode
+        self._clipboard = TTkClipboard()
+        super().__init__(**kwargs)
+        self.setInputType(inputType)
+        self.setMaximumHeight(1)
+        self.setMinimumSize(1,1)
+        self.setFocusPolicy(TTkK.ClickFocus | TTkK.TabFocus)
+        self.enableWidgetCursor()
+
+    @pyTTkSlot(TTkStringType)
+    def setText(self, text:TTkStringType, cursorPos:int=0x1000) -> None:
+        ''' Set the text content of the line edit
+
+        :param text: The new text to display
+        :type text: :py:class:`TTkString` or str
+        :param cursorPos: Position to place the cursor (defaults to end of text)
+        :type cursorPos: int, optional
+        '''
+        if text != self._text:
+            self.textChanged.emit(text)
+            self._text = TTkString(text)
+        if cursorPos != self._cursorPos:
+            self._cursorPos = max(0,min(cursorPos, len(text)))
+            self._pushCursor()
+
+    def text(self) -> TTkString:
+        ''' Get the current text content
+
+        :return: The current text
+        :rtype: :py:class:`TTkString`
+        '''
+        return self._text
+
+    def inputType(self) -> TTkK.InputType:
+        ''' Get the current input validation type
+
+        :return: The input type (:py:class:`TTkK.InputType.Input_Text` or :py:class:`TTkK.InputType.Input_Number`)
+        :rtype: :py:class:`TTkK.InputType`
+        '''
+        return self._inputType
+
+    def setInputType(self, inputType:TTkK.InputType) -> None:
+        ''' Set the input validation type
+
+        When set to Input_Number, only numeric values (including decimals) are accepted.
+
+        :param inputType: The input type to validate against
+        :type inputType: :py:class:`TTkK.InputType`
+        '''
+        if bool(inputType & TTkK.InputType.Input_Text) and bool(inputType & TTkK.InputType.Input_Number):
+            return
+        # Kept here for retrocompatibility
+        if inputType & TTkK.InputType.Input_Password:
+            TTkLog.warn("TTkK.InputType.Input_Password is deprecated, use the EchoMode instead")
+            self._echoMode = TTkLineEdit.EchoMode.Password
+            inputType &= ~TTkK.InputType.Input_Password
+        if inputType & ~(TTkK.InputType.Input_Text|TTkK.InputType.Input_Number):
+            return
+        self._inputType = inputType & (TTkK.InputType.Input_Text|TTkK.InputType.Input_Number) if inputType else TTkK.InputType.Input_Text
+        if ( self._inputType == TTkK.InputType.Input_Number and
+             not self._isFloat(self._text)):
+            self._text = TTkString('0')
+        self.update()
+
+    def echoMode(self) -> EchoMode:
+        ''' Get the current echo mode
+
+        :return: The current echo mode
+        :rtype: :py:class:`EchoMode`
+        '''
+        return self._echoMode
+
+    def setEchoMode(self, echoMode:EchoMode):
+        ''' Set how text is displayed
+
+        :param echoMode: The echo mode (Normal, NoEcho, Password, PasswordEchoOnEdit)
+        :type echoMode: :py:class:`EchoMode`
+        '''
+        self._echoMode = echoMode
+        self.update()
+
+    def resizeEvent(self, w: int, h: int):
+        self._pushCursor()
+        return super().resizeEvent(w, h)
+
+    def _pushCursor(self):
+        w = self.width()
+
+        self._selectionTo   = self._selectionFrom
+
+        # Align the text and the offset and the cursor to the current view
+        self._offset = max(0, min(self._offset, len(self._text)-w))
+        # Scroll to the right if reached the edge
+        cursorPos = self._text.substring(to=self._cursorPos).termWidth()
+        if cursorPos - self._offset > w:
+            self._offset = cursorPos-w
+        if cursorPos - self._offset < 0:
+            self._offset = cursorPos
+
+        if not self.hasFocus():
+            return
+
+        if self._replace or not self._text:
+            self.setWidgetCursor(pos=(cursorPos-self._offset, 0), type=TTkK.Cursor_Blinking_Block)
+        else:
+            self.setWidgetCursor(pos=(cursorPos-self._offset, 0), type=TTkK.Cursor_Blinking_Bar)
+
+        self.update()
+
+    def mousePressEvent(self, evt:TTkMouseEvent) -> bool:
+        txtPos = self._text.tabCharPos(evt.x+self._offset)
+        self._cursorPos     = txtPos
+        self._selectionFrom = txtPos
+        self._selectionTo   = txtPos
+        self._pushCursor()
+        return True
+
+    def mouseDragEvent(self, evt:TTkMouseEvent) -> bool:
+        txtPos = self._text.tabCharPos(evt.x+self._offset)
+        self._selectionFrom = max(0,              min(txtPos,self._cursorPos))
+        self._selectionTo   = min(len(self._text),max(txtPos,self._cursorPos))
+        if self._selectionFrom < self._selectionTo:
+            TTkHelper.hideCursor()
+        self.update()
+        self.copy()
+        return True
+
+    def mouseDoubleClickEvent(self, evt:TTkMouseEvent) -> bool:
+        before = self._text.substring(to=self._cursorPos)
+        after =  self._text.substring(fr=self._cursorPos)
+
+        self._selectionFrom = len(before)
+        self._selectionTo = len(before)
+
+        selectRE = r'[^ \t\r\n()[\]\.\,\+\-\*\/]*'
+
+        if m := before.search(selectRE+'$'):
+            self._selectionFrom -= len(m.group(0))
+        if m := after.search('^'+selectRE):
+            self._selectionTo += len(m.group(0))
+
+        # TTkLog.debug("x"*self._selectionFrom)
+        # TTkLog.debug("x"*self._selectionTo)
+        # TTkLog.debug(self._text)
+
+        if self._selectionFrom < self._selectionTo:
+            TTkHelper.hideCursor()
+
+        self.update()
+        self.copy()
+        return True
+
+    def mouseTapEvent(self, evt:TTkMouseEvent) -> bool:
+        self._selectionFrom = 0
+        self._selectionTo = len(self._text)
+        if self._selectionFrom < self._selectionTo:
+            TTkHelper.hideCursor()
+        self.update()
+        self.copy()
+        return True
+
+    @staticmethod
+    def _isFloat(num):
+        try:
+            float(str(num))
+            return True
+        except:
+            return False
+
+    @pyTTkSlot()
+    def copy(self):
+        ''' Copy the selected text to the clipboard
+        '''
+        if self._selectionFrom >= self._selectionTo: return
+        txt = self._text.substring(fr=self._selectionFrom,to=self._selectionTo)
+        self._clipboard.setText(txt)
+
+    @pyTTkSlot()
+    def cut(self):
+        ''' Cut the selected text to the clipboard
+        '''
+        self.copy()
+        self._text = self._text.substring(to=self._selectionFrom) + self._text.substring(fr=self._selectionTo)
+        self._cursorPos = self._selectionFrom
+        self.update()
+
+    @pyTTkSlot()
+    def paste(self):
+        ''' Paste text from the clipboard at the cursor position
+        '''
+        txt = self._clipboard.text()
+        self.pasteEvent(txt)
+
+    def pasteEvent(self, txt:str):
+        ''' Handle paste event with custom text
+
+        :param txt: The text to paste
+        :type txt: str
+        :return: True if the event was handled
+        :rtype: bool
+        '''
+        ttk_txt = TTkString(''.join(txt.split('\n')))
+
+        text = self._text
+
+        if self._selectionFrom < self._selectionTo:
+            pre  = text.substring(to=self._selectionFrom)
+            post = text.substring(fr=self._selectionTo)
+            self._cursorPos = self._selectionFrom
+        else:
+            pre = text.substring(to=self._cursorPos)
+            if self._replace:
+                post = text.substring(fr=self._cursorPos+1)
+            else:
+                post = text.substring(fr=self._cursorPos)
+
+        text = pre + ttk_txt + post
+        if ( self._inputType & TTkK.InputType.Input_Number and
+             not self._isFloat(text) ):
+            return True
+        self.setText(text, self._cursorPos+ttk_txt.termWidth())
+
+        self._pushCursor()
+        self.textEdited.emit(self._text)
+        return True
+
+    def keyEvent(self, evt:TTkKeyEvent) -> bool:
+        baseText = self._text
+        if evt.type == TTkK.SpecialKey:
+            # Don't Handle the special focus switch key
+            if evt.key in (
+                TTkK.Key_Tab, TTkK.Key_Up, TTkK.Key_Down):
+                return False
+
+            # CTRL Pressed
+            if evt.mod==TTkK.ControlModifier:
+                if   evt.key == TTkK.Key_C:
+                    self.copy()
+                elif evt.key == TTkK.Key_V:
+                    self.paste()
+                elif evt.key == TTkK.Key_X:
+                    self.cut()
+                else:
+                    return super().keyEvent(evt)
+                return True
+
+            text = self._text
+            cursorPos = self._cursorPos
+
+            if evt.key == TTkK.Key_Left:
+                if self._selectionFrom < self._selectionTo:
+                    cursorPos = self._selectionTo
+                cursorPos = self._text.prevPos(self._cursorPos)
+            elif evt.key == TTkK.Key_Right:
+                if self._selectionFrom < self._selectionTo:
+                    cursorPos = self._selectionTo-1
+                cursorPos = self._text.nextPos(self._cursorPos)
+            elif evt.key == TTkK.Key_End:
+                cursorPos = len(self._text)
+            elif evt.key == TTkK.Key_Home:
+                cursorPos = 0
+            elif evt.key == TTkK.Key_Insert:
+                self._replace = not self._replace
+            elif evt.key == TTkK.Key_Delete:
+                if self._selectionFrom < self._selectionTo:
+                    text = self._text.substring(to=self._selectionFrom) + self._text.substring(fr=self._selectionTo)
+                    cursorPos = self._selectionFrom
+                else:
+                    text = self._text.substring(to=self._cursorPos) + self._text.substring(fr=self._text.nextPos(self._cursorPos))
+            elif evt.key == TTkK.Key_Backspace:
+                if self._selectionFrom < self._selectionTo:
+                    text = self._text.substring(to=self._selectionFrom) + self._text.substring(fr=self._selectionTo)
+                    cursorPos = self._selectionFrom
+                elif self._cursorPos > 0:
+                   prev = self._text.prevPos(self._cursorPos)
+                   text = self._text.substring(to=prev) + self._text.substring(fr=self._cursorPos)
+                   cursorPos = prev
+
+            if ( self._inputType & TTkK.InputType.Input_Number and
+                 not self._isFloat(self._text) ):
+                self.setText('0', 1)
+            else:
+                self.setText(text, cursorPos)
+
+            self._pushCursor()
+
+            if evt.key == TTkK.Key_Enter:
+                self.returnPressed.emit()
+        elif isinstance(evt.key,str):
+            text = self._text
+
+            if self._selectionFrom < self._selectionTo:
+                pre  = text.substring(to=self._selectionFrom)
+                post = text.substring(fr=self._selectionTo)
+                self._cursorPos = self._selectionFrom
+            else:
+                pre = text.substring(to=self._cursorPos)
+                if self._replace:
+                    post = text.substring(fr=self._cursorPos+1)
+                else:
+                    post = text.substring(fr=self._cursorPos)
+
+            text = pre + evt.key + post
+            if ( self._inputType & TTkK.InputType.Input_Number and
+                 ( evt.key in (' ') or not self._isFloat(text) )):
+                return True
+            self.setText(text, self._cursorPos+1)
+
+            self._pushCursor()
+        # Emit event only if the text changed
+        if baseText != self._text:
+            self.textEdited.emit(self._text)
+        return True
+
+    def focusInEvent(self):
+        self._pushCursor()
+
+    def focusOutEvent(self):
+        self._selectionFrom = 0
+        self._selectionTo   = 0
+        TTkHelper.hideCursor()
+        self.update()
+
+    def paintEvent(self, canvas):
+        style = self.currentStyle()
+
+        color       = style['color']
+        bgcolor     = style['bgcolor']
+        selectColor = style['selectedColor']
+
+        w = self.width()
+        text = TTkString('', color)
+        if self._echoMode != TTkLineEdit.EchoMode.NoEcho:
+            if ( self._echoMode == TTkLineEdit.EchoMode.Password or
+                 ( self._echoMode == TTkLineEdit.EchoMode.PasswordEchoOnEdit and
+                   not self.hasFocus() )):
+                text += ("*"*(len(self._text)))
+            else:
+                text += self._text
+        if self._selectionFrom < self._selectionTo:
+            text = text.setColor(color=selectColor, posFrom=self._selectionFrom, posTo=self._selectionTo)
+        text = text.substring(self._offset) + (' ' if self.hasFocus() else '')  # Space for cursor foreground
+        canvas.fill(color=bgcolor)
+        if text:
+            canvas.drawTTkString(pos=(0,0), text=text, color=color)
+        else:
+            canvas.drawTTkString(pos=(0,0), text=self._hint, color=bgcolor)
+
+
