@@ -602,6 +602,17 @@ class RecommendationsMessage(SlskMessage):
         return pos, recommendations, unrecommendations
 
 
+class SimilarUser:
+    __slots__ = ("username", "rating")
+
+    def __init__(self, username, rating=None):
+        self.username = username
+        self.rating = rating
+
+    def __repr__(self):
+        return f"({self.username!r}, {self.rating!r})"
+
+
 class UserData:
     """When we join a room, the server sends us a bunch of these for each
     user."""
@@ -2172,7 +2183,7 @@ class SimilarUsers(ServerMessage):
     __slots__ = ("users",)
 
     def __init__(self):
-        self.users = {}
+        self.users = []
 
     def make_network_message(self):
         return b""
@@ -2184,7 +2195,10 @@ class SimilarUsers(ServerMessage):
             pos, user = self.unpack_string(message, pos)
             pos, rating = self.unpack_uint32(message, pos)
 
-            self.users[user] = rating
+            self.users.append(SimilarUser(user, rating))
+
+        if num > 1:
+            self.users.sort(key=lambda x: x.rating, reverse=True)
 
 
 class ItemRecommendations(ServerMessage):
@@ -2233,7 +2247,7 @@ class ItemSimilarUsers(ServerMessage):
 
         for _ in range(num):
             pos, user = self.unpack_string(message, pos)
-            self.users.append(user)
+            self.users.append(SimilarUser(user))
 
 
 class RoomTickers(ServerMessage):
