@@ -256,7 +256,7 @@
  - David Balazs (djbaloo) (2006–2020)
 
 ### Indonesian
- - Delly Store (dellystore.07) (2025-2025)
+ - Delly Store (dellystore.07) (2025)
 
 ### Italian
  - Gabriele (Gabboxl) (2022–2023)
@@ -379,11 +379,14 @@
  - daelstorm
  - David Balazs
  - dbazza
+ - Delly Store
+ - Denisa Alicia Rissa
  - Dreslo
  - dtalens
  - Elias Groß
  - Emily
  - Enr1X
+ - Eric Zhang
  - Eryk Michalak
  - Everly
  - Felipe Nogaroto Gonzalez
@@ -400,10 +403,12 @@
  - Gustavo J. A. M. Carneiro
  - hadwin
  - Han Boetes
+ - Hannah Nosurname
  - Havokdan
  - hednod
  - Héliaz
  - homedirectory
+ - HUMET
  - hylau
  - ian andrew remsen
  - Ilya
@@ -412,6 +417,7 @@
  - INMCM
  - Inso-m-niaC
  - Jackson Baber
+ - Jan Wesselink
  - Jason Green
  - jat
  - Jean-Baptiste ALLAIN
@@ -470,6 +476,7 @@
  - ms-afk
  - Mutnick
  - mzf-guest
+ - n6id
  - Nachtalb
  - Nguyen Tuan Khoi
  - nicola
