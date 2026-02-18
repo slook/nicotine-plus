@@ -87,15 +87,19 @@ class WishList(Dialog):
 
         self.list_view.unfreeze()
 
+        self.popup_menu_reset = PopupMenu(application, self.list_view.widget)
+        self.popup_menu_reset.add_items(
+            ("#" + _("Custom Filters"), self.on_reset_custom_filters),
+            ("#" + _("Seen Results"), self.on_reset_seen_results)
+        )
+
         self.popup_menu = PopupMenu(application, self.list_view.widget)
         self.popup_menu.add_items(
             ("#" + _("_Search for Item"), self.on_search_wish),
             ("", None),
             ("#" + _("_Edit…"), self.on_edit_wish),
             ("#" + _("Set Custom _Filters…"), self.on_update_filters),
-            ("", None),
-            ("#" + _("Reset Filters"), self.on_reset_filters),
-            ("#" + _("Reset Seen Results"), self.on_reset_seen_results),
+            (">" + _("Reset"), self.popup_menu_reset),
             ("", None),
             ("#" + _("Remove"), self.on_remove_wish)
         )
@@ -114,6 +118,7 @@ class WishList(Dialog):
     def destroy(self):
 
         self.popup_menu.destroy()
+        self.popup_menu_reset.destroy()
         self.list_view.destroy()
 
         super().destroy()
@@ -290,7 +295,7 @@ class WishList(Dialog):
             core.search.do_search(wish, mode="wishlist")
             return
 
-    def on_reset_filters(self, *_args):
+    def on_reset_custom_filters(self, *_args):
 
         for iterator in self.list_view.get_selected_rows():
             wish = self.list_view.get_row_value(iterator, "wish")
