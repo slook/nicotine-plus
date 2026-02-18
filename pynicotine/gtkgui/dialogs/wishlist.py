@@ -89,11 +89,14 @@ class WishList(Dialog):
 
         self.popup_menu = PopupMenu(application, self.list_view.widget)
         self.popup_menu.add_items(
-            ("#" + _("_Edit…"), self.on_edit_wish),
-            ("#" + _("Update _Filters…"), self.on_update_filters),
             ("#" + _("_Search for Item"), self.on_search_wish),
             ("", None),
+            ("#" + _("_Edit…"), self.on_edit_wish),
+            ("#" + _("Set Custom _Filters…"), self.on_update_filters),
+            ("", None),
+            ("#" + _("Reset Filters"), self.on_reset_filters),
             ("#" + _("Reset Seen Results"), self.on_reset_seen_results),
+            ("", None),
             ("#" + _("Remove"), self.on_remove_wish)
         )
 
@@ -286,6 +289,12 @@ class WishList(Dialog):
             wish = self.list_view.get_row_value(iterator, "wish")
             core.search.do_search(wish, mode="wishlist")
             return
+
+    def on_reset_filters(self, *_args):
+
+        for iterator in self.list_view.get_selected_rows():
+            wish = self.list_view.get_row_value(iterator, "wish")
+            core.search.clear_wish_filters(wish)
 
     def on_reset_seen_results(self, *_args):
 
