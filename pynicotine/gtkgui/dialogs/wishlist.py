@@ -94,8 +94,8 @@ class WishList(Dialog):
             ("#" + _("_Edit…"), self.on_edit_wish),
             ("#" + _("Set Custom _Filters…"), self.on_update_filters),
             ("", None),
-            ("#" + _("Reset Filters"), self.on_reset_filters),
             ("#" + _("Reset Seen Results"), self.on_reset_seen_results),
+            ("#" + _("Reset Filters"), self.on_reset_filters),
             ("", None),
             ("#" + _("Remove"), self.on_remove_wish)
         )
