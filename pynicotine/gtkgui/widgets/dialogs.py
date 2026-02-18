@@ -580,6 +580,8 @@ class EntryDialog(OptionDialog):
             entry = TextView(scrolled_window)
             mnemonic_widget = entry.widget
 
+            Accelerator("Return", entry.widget, self.on_activate_default_accelerator)
+
         else:
             entry = child = mnemonic_widget = Gtk.Entry(
                 activates_default=True, visibility=visibility, show_emoji_icon=show_emoji_icon,
@@ -628,3 +630,10 @@ class EntryDialog(OptionDialog):
             return None
 
         return self.second_entry_combobox.get_text()
+
+    def on_activate_default_accelerator(self, *_args):
+        """Enter - activate default widget."""
+
+        widget = self.widget.get_default_widget()
+        widget.activate()
+        return True
