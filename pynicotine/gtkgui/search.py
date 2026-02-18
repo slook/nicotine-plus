@@ -784,19 +784,16 @@ class Search:
 
         sfilter = []
 
+        if config.sections["searches"]["enablefilters"]:
+            sfilter = config.sections["searches"]["defilter"]
+
         if self.mode == "wishlist":
             search = core.search.wishlist.get(self.text)
 
-            if search is not None:
-                if search.filter_mode == ResultFilterMode.NONE:
-                    return
-
+            if search is not None and search.filter_mode == ResultFilterMode.CUSTOM:
                 sfilter = search.custom_filters
 
-        elif config.sections["searches"]["enablefilters"]:
-            sfilter = config.sections["searches"]["defilter"]
-
-        else:
+        if not sfilter:
             return
 
         num_filters = len(sfilter)
@@ -1421,15 +1418,12 @@ class Search:
 
         self.on_refilter()
 
-        if self.filters != self.FILTERS_EMPTY:
-            filters = []
+        filters = []
 
-            for _filter_value, h_filter_value in self.filters.values():
-                filters.append(h_filter_value)
+        for _filter_value, h_filter_value in self.filters.values():
+            filters.append(h_filter_value)
 
-            core.search.update_wish_filters(self.text, *filters)
-        else:
-            core.search.clear_wish_filters(self.text)
+        core.search.update_wish_filters(self.text, *filters)
 
         self.store_filters_button.set_sensitive(False)
 

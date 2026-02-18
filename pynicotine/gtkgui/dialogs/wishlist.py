@@ -209,11 +209,13 @@ class WishList(Dialog):
         if not wish:
             return
 
-        old_filters = None
+        old_filters = []
 
         if wish != old_wish:
             old_search = core.search.wishlist[old_wish]
-            old_filters = old_search.custom_filters
+
+            if enable_filters:
+                old_filters = old_search.custom_filters
 
             core.search.remove_wish(old_wish)
             core.search.add_wish(wish)
@@ -223,9 +225,7 @@ class WishList(Dialog):
 
         search.auto_search = auto_search
         search.filter_mode = ResultFilterMode.CUSTOM if enable_filters else ResultFilterMode.NONE
-
-        if old_filters:
-            search.custom_filters = old_filters
+        search.custom_filters = old_filters
 
         self.list_view.set_row_value(iterator, "enabled", auto_search)
         self.list_view.set_row_value(iterator, "filtered", self.FILTERED_ICON_NAME if enable_filters else "")
@@ -234,7 +234,7 @@ class WishList(Dialog):
 
     def on_edit_wish(self, *_args):
 
-        _reserved = _("Default filters")
+        default_filters = _("Default filters") if config.sections["searches"]["enablefilters"] else _("No filters")
 
         for iterator in self.list_view.get_selected_rows():
             old_enabled = self.list_view.get_row_value(iterator, "enabled")
@@ -246,8 +246,8 @@ class WishList(Dialog):
                 title=_("Edit Wish"),
                 message=_("Modify the search term '%s':") % old_wish,
                 default=old_wish,
-                second_default=_("Custom filters") if filtered else _("No filters"),
-                second_droplist=[_("No filters"), _("Custom filters")],
+                second_default=_("Custom filters") if filtered else default_filters,
+                second_droplist=[default_filters, _("Custom filters")],
                 use_second_entry=True,
                 second_entry_editable=False,
                 action_button_label=_("_Edit"),
@@ -268,7 +268,7 @@ class WishList(Dialog):
 
             if search is not None:
                 old_filter_mode = search.filter_mode
-                search.filter_mode = ResultFilterMode.CUSTOM
+                search.filter_mode = ResultFilterMode.CUSTOM if search.custom_filters else ResultFilterMode.NONE
 
             config.sections["searches"]["filters_visible"] = True
             core.search.do_search(wish, mode="wishlist")

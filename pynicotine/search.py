@@ -38,7 +38,6 @@ from pynicotine.utils import write_file_and_backup
 
 class ResultFilterMode:
     NONE = "none"
-    DEFAULT = "default"
     CUSTOM = "custom"
 
 
