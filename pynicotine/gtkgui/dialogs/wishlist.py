@@ -265,19 +265,10 @@ class WishList(Dialog):
 
         for iterator in self.list_view.get_selected_rows():
             wish = self.list_view.get_row_value(iterator, "wish")
-            search = core.search.wishlist.get(wish)
-            old_filter_mode = ResultFilterMode.NONE
             old_filters_visible = config.sections["searches"]["filters_visible"]
-
-            if search is not None:
-                old_filter_mode = search.filter_mode
-                search.filter_mode = ResultFilterMode.CUSTOM if search.custom_filters else ResultFilterMode.NONE
 
             config.sections["searches"]["filters_visible"] = True
             core.search.do_search(wish, mode="wishlist")
-
-            if search is not None:
-                search.filter_mode = old_filter_mode
 
             config.sections["searches"]["filters_visible"] = old_filters_visible
             self.close()
