@@ -1314,7 +1314,7 @@ class NetworkThread(Thread):
 
                 log.add_conn("Server is our parent, ready to distribute search requests as a branch root")
 
-            self._send_message_to_child_peers(DistribEmbeddedMessage(msg.distrib_code, msg.distrib_message))
+            self._send_message_to_child_peers(unpacked_msg, msg.distrib_message)
             msg = unpacked_msg
 
         elif msg_class is Login:
@@ -2172,10 +2172,7 @@ class NetworkThread(Thread):
 
         self._child_peers[username] = conn
         self._send_message_to_peer(username, DistribBranchLevel(self._branch_level))
-
-        if self._parent is not None:
-            # Only sent when we're not the branch root
-            self._send_message_to_peer(username, DistribBranchRoot(self._branch_root))
+        self._send_message_to_peer(username, DistribBranchRoot(self._branch_root))
 
         log.add_conn("Adopting user %s as distributed child peer. Number of current child peers: %s",
                      (username, len(self._child_peers)))
@@ -2275,8 +2272,8 @@ class NetworkThread(Thread):
         if len(self._child_peers) < self._max_distrib_children:
             self._send_message_to_server(AcceptChildren(True))
 
-        self._send_message_to_child_peers(DistribBranchRoot(self._branch_root))
         self._send_message_to_child_peers(DistribBranchLevel(self._branch_level))
+        self._send_message_to_child_peers(DistribBranchRoot(self._branch_root))
         self._child_peers.pop(username, None)
 
         log.add_conn(
