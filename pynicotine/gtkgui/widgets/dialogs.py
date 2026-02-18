@@ -530,24 +530,24 @@ class EntryDialog(OptionDialog):
         self.second_entry_combobox = None
 
         self.entry_combobox = self.default_focus_widget = self._add_entry_combobox(
-            default, has_entry=entry_editable, activates_default=not use_second_entry, visibility=visibility,
+            default, has_entry=entry_editable, visibility=visibility,
             max_length=max_length, multiline=multiline, show_emoji_icon=show_emoji_icon, droplist=droplist
         )
 
         if use_second_entry:
             self.second_entry_combobox = self._add_entry_combobox(
-                second_default, has_entry=second_entry_editable, activates_default=False,
+                second_default, has_entry=second_entry_editable,
                 visibility=second_visibility, max_length=second_max_length, show_emoji_icon=show_emoji_icon,
                 multiline=multiline, droplist=second_droplist
             )
 
-    def _add_combobox(self, items, has_entry=True, max_length=0, visibility=True, activates_default=True):
+    def _add_combobox(self, items, has_entry=True, max_length=0, visibility=True):
 
         combobox = ComboBox(container=self.entry_container, has_entry=has_entry, items=items)
 
         if has_entry:
             entry = combobox.entry
-            entry.set_activates_default(activates_default)
+            entry.set_activates_default(True)
             entry.set_max_length(max_length)
             entry.set_width_chars(45)
             entry.set_visibility(visibility)
@@ -558,13 +558,11 @@ class EntryDialog(OptionDialog):
         self.container.set_visible(True)
         return combobox
 
-    def _add_entry(self, visibility=True, max_length=0, multiline=False, show_emoji_icon=False,
-                   activates_default=True):
+    def _add_entry(self, visibility=True, max_length=0, multiline=False, show_emoji_icon=False):
 
         if GTK_API_VERSION >= 4 and not visibility:
             entry = child = mnemonic_widget = Gtk.PasswordEntry(
-                activates_default=activates_default, show_peek_icon=True,
-                width_chars=50, visible=True
+                activates_default=True, show_peek_icon=True, width_chars=50, visible=True
             )
             text_widget = next(iter(entry))
             text_widget.set_truncate_multiline(True)
@@ -584,7 +582,7 @@ class EntryDialog(OptionDialog):
 
         else:
             entry = child = mnemonic_widget = Gtk.Entry(
-                activates_default=activates_default, visibility=visibility, show_emoji_icon=show_emoji_icon,
+                activates_default=True, visibility=visibility, show_emoji_icon=show_emoji_icon,
                 truncate_multiline=(not visibility), max_length=max_length, width_chars=50, visible=True)
 
         if GTK_API_VERSION >= 4:
@@ -598,7 +596,7 @@ class EntryDialog(OptionDialog):
         self.container.set_visible(True)
         return entry
 
-    def _add_entry_combobox(self, default, activates_default=True, has_entry=True, visibility=True,
+    def _add_entry_combobox(self, default, has_entry=True, visibility=True,
                             max_length=0, multiline=False, show_emoji_icon=False, droplist=None):
 
         if self.entry_container is None:
@@ -612,12 +610,10 @@ class EntryDialog(OptionDialog):
 
         if not has_entry or droplist:
             entry_combobox = self._add_combobox(
-                droplist, has_entry=has_entry, max_length=max_length, activates_default=activates_default,
-                visibility=visibility)
+                droplist, has_entry=has_entry, max_length=max_length, visibility=visibility)
         else:
             entry_combobox = self._add_entry(
-                activates_default=activates_default, visibility=visibility, max_length=max_length,
-                multiline=multiline, show_emoji_icon=show_emoji_icon)
+                visibility=visibility, max_length=max_length, multiline=multiline, show_emoji_icon=show_emoji_icon)
 
         entry_combobox.set_text(default)
 
