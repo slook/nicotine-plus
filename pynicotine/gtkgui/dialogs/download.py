@@ -432,7 +432,6 @@ class Download(Dialog):
         self.tree_view.freeze()
 
         selected = True
-        has_added_file = False
 
         for folder_path, files in msg.list.items():
             if folder_path != msg.dir:
@@ -464,16 +463,11 @@ class Download(Dialog):
                 )
                 child_iterators.appendleft(iterator)
                 self.num_files[username][folder_path] += 1
-                has_added_file = True
 
-                if selected:
-                    self.total_selected_size += size
-                    self.num_selected_files[username][folder_path] += 1
+                self.total_selected_size += size
+                self.num_selected_files[username][folder_path] += 1
 
                 if not unselected_parent:
-                    if not selected:
-                        self.tree_view.set_row_value(parent_iterator, "selected", False)
-
                     self.initial_selected_iterators.discard(parent_iterator)
                     unselected_parent = True
 
@@ -487,11 +481,7 @@ class Download(Dialog):
             if not self.pending_folders[username]:
                 del self.pending_folders[username]
 
-        if selected:
-            self.update_title()
-
-        elif has_added_file:
-            self.unselect_all_button.set_visible(False)
+        self.update_title()
 
         if not self.pending_folders:
             self.set_finished()
