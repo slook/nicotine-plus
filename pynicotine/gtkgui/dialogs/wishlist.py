@@ -64,7 +64,10 @@ class WishList(Dialog):
                     "column_type": "icon",
                     "title": _("Custom Filters"),
                     "width": 25,
-                    "hide_header": True
+                    "sort_column": "active_filters_data",
+                    "hide_header": True,
+                    "sensitive_column": "active_filters_data",
+                    "tooltip_callback": self.on_custom_filters_tooltip
                 },
                 "added": {
                     "column_type": "text",
@@ -75,7 +78,8 @@ class WishList(Dialog):
                 },
 
                 # Hidden data columns
-                "added_data": {"data_type": GObject.TYPE_UINT64}
+                "added_data": {"data_type": GObject.TYPE_UINT64},
+                "active_filters_data": {"data_type": GObject.TYPE_INT}
             }
         )
         self.default_text = ""
@@ -121,13 +125,20 @@ class WishList(Dialog):
     def add_wish(self, wish, select=True):
 
         search = core.search.wishlist[wish]
+        icon_name = ""
+        num_active_filters = -1
+
+        if search.filter_mode == ResultFilterMode.CUSTOM:
+            icon_name = self.FILTERED_ICON_NAME
+            num_active_filters = search.num_active_filters
 
         self.list_view.add_row([
             wish,
             search.auto_search,
-            self.FILTERED_ICON_NAME if search.filter_mode != ResultFilterMode.NONE else "",
+            icon_name,
             time.strftime("%x", time.localtime(search.time_added)),
-            search.time_added
+            search.time_added,
+            num_active_filters
         ], select_row=select)
 
     def remove_wish(self, wish):
@@ -141,8 +152,13 @@ class WishList(Dialog):
 
         iterator = self.list_view.iterators.get(wish)
 
-        if iterator is not None:
-            self.list_view.set_row_value(iterator, "filtered", self.FILTERED_ICON_NAME)
+        if iterator is None:
+            return
+
+        search = core.search.wishlist[wish]
+
+        self.list_view.set_row_value(iterator, "filtered", self.FILTERED_ICON_NAME)
+        self.list_view.set_row_value(iterator, "active_filters_data", search.num_active_filters)
 
     def clear_wish_filters(self, wish):
 
@@ -150,6 +166,7 @@ class WishList(Dialog):
 
         if iterator is not None:
             self.list_view.set_row_value(iterator, "filtered", "")
+            self.list_view.set_row_value(iterator, "active_filters_data", -1)
 
     def select_wish(self, wish):
 
@@ -157,6 +174,16 @@ class WishList(Dialog):
 
         if iterator is not None:
             self.list_view.select_row(iterator)
+
+    def on_custom_filters_tooltip(self, treeview, iterator):
+
+        wish = treeview.get_row_value(iterator, "wish")
+        search = core.search.wishlist.get(wish)
+
+        if search is not None:
+            return _("Custom Filters Enabled (%(num)s Active)") % {"num": search.num_active_filters}
+
+        return None
 
     def on_toggle_wish(self, list_view, iterator):
 
@@ -206,7 +233,7 @@ class WishList(Dialog):
     def on_edit_wish_response(self, dialog, _response_id, old_wish):
 
         wish = dialog.get_entry_value().strip()
-        enable_filters = (dialog.get_second_entry_value() == _("Custom filters"))
+        enable_filters = dialog.get_second_entry_value() not in {_("No filters"), _("Default filters")}
         auto_search = dialog.get_option_value()
 
         if not wish:
@@ -232,25 +259,31 @@ class WishList(Dialog):
 
         self.list_view.set_row_value(iterator, "enabled", auto_search)
         self.list_view.set_row_value(iterator, "filtered", self.FILTERED_ICON_NAME if enable_filters else "")
+        self.list_view.set_row_value(
+            iterator, "active_filters_data", search.num_active_filters if enable_filters else -1)
 
         self.select_wish(wish)
 
     def on_edit_wish(self, *_args):
-
-        default_filters = _("Default filters") if config.sections["searches"]["enablefilters"] else _("No filters")
 
         for iterator in self.list_view.get_selected_rows():
             old_enabled = self.list_view.get_row_value(iterator, "enabled")
             old_wish = self.list_view.get_row_value(iterator, "wish")
             filtered = bool(self.list_view.get_row_value(iterator, "filtered"))
 
+            search = core.search.wishlist.get(old_wish)
+            num_active_filters = search.num_active_filters if search is not None else 0
+
+            default_filters = _("Default filters") if config.sections["searches"]["enablefilters"] else _("No filters")
+            custom_filters = _("Custom filters (%(num)s active)") % {"num": num_active_filters}
+
             EntryDialog(
                 application=self.application,
                 title=_("Edit Wish"),
                 message=_("Modify the search term '%s':") % old_wish,
                 default=old_wish,
-                second_default=_("Custom filters") if filtered else default_filters,
-                second_droplist=[default_filters, _("Custom filters")],
+                second_default=custom_filters if filtered else default_filters,
+                second_droplist=[default_filters, custom_filters],
                 use_second_entry=True,
                 second_entry_editable=False,
                 action_button_label=_("_Edit"),
