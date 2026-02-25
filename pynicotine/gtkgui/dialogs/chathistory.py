@@ -79,6 +79,7 @@ class ChatHistory(Dialog):
             ("#" + _("Delete Chat Log…"), self.on_delete_chat_log)
         )
 
+        Accelerator("Escape", self.widget, self.on_escape_accelerator)
         Accelerator("<Primary>f", self.widget, self.on_search_accelerator)
 
         self.load_users()
@@ -303,6 +304,15 @@ class ChatHistory(Dialog):
                 callback_data=username
             ).present()
             return
+
+    def on_escape_accelerator(self, *_args):
+        """Escape - Focus list view."""
+
+        if not self.list_container.get_visible() or self.list_view.has_focus():
+            return False
+
+        self.list_view.grab_focus()
+        return True
 
     def on_search_accelerator(self, *_args):
         """Ctrl+F - Search users."""

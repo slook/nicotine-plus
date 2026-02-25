@@ -115,6 +115,7 @@ class WishList(Dialog):
             ("#" + _("Remove"), self.on_remove_wish)
         )
 
+        Accelerator("Escape", self.widget, self.on_escape_accelerator)
         Accelerator("<Primary>f", self.widget, self.on_search_accelerator)
 
         for event_name, callback in (
@@ -395,6 +396,15 @@ class WishList(Dialog):
             return
 
         self.on_add_wish()
+
+    def on_escape_accelerator(self, *_args):
+        """Escape - Focus list view."""
+
+        if self.list_view.has_focus():
+            return False
+
+        self.list_view.grab_focus()
+        return True
 
     def on_search_accelerator(self, *_args):
         """Ctrl+F - Search wish terms."""

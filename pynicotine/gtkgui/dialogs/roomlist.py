@@ -97,6 +97,7 @@ class RoomList(Dialog):
         self.room_invitations_toggle.set_active(config.sections["server"]["private_chatrooms"])
         self.room_invitations_toggle.connect("notify::active", self.on_toggle_room_invitations)
 
+        Accelerator("Escape", self.widget, self.on_escape_accelerator)
         Accelerator("<Primary>f", self.widget, self.on_search_accelerator)
 
         for event_name, callback in (
@@ -390,6 +391,15 @@ class RoomList(Dialog):
     def on_toggle_room_invitations(self, *_args):
         active = config.sections["server"]["private_chatrooms"] = self.room_invitations_toggle.get_active()
         core.chatrooms.request_enable_room_invitations(active)
+
+    def on_escape_accelerator(self, *_args):
+        """Escape - Focus list view."""
+
+        if not self.list_container.get_visible() or self.list_view.has_focus():
+            return False
+
+        self.list_view.grab_focus()
+        return True
 
     def on_search_accelerator(self, *_args):
         """Ctrl+F - Search rooms."""

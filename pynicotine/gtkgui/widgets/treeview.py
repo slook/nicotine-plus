@@ -675,6 +675,9 @@ class TreeView:
     def is_row_selected(self, iterator):
         return self._selection.iter_is_selected(iterator)
 
+    def has_focus(self):
+        return self.widget.has_focus()
+
     def grab_focus(self):
         self.widget.grab_focus()
 
