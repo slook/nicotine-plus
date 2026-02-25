@@ -116,7 +116,6 @@ class WishList(Dialog):
         )
 
         Accelerator("<Primary>f", self.widget, self.on_search_accelerator)
-        Accelerator("Down", self.search_entry, self.on_focus_list_view_accelerator)
 
         for event_name, callback in (
             ("add-wish", self.add_wish),
@@ -392,7 +391,7 @@ class WishList(Dialog):
     def on_search_list(self, *_args):
 
         if self.list_view.get_num_selected_rows() > 0:
-            self.list_view.grab_focus()
+            self.on_edit_wish()
             return
 
         self.on_add_wish()
@@ -401,12 +400,6 @@ class WishList(Dialog):
         """Ctrl+F - Search wish terms."""
 
         self.search_entry.grab_focus()
-        return True
-
-    def on_focus_list_view_accelerator(self, *_args):
-        """Down - Focus list view."""
-
-        self.list_view.grab_focus()
         return True
 
     def on_show(self, *_args):
