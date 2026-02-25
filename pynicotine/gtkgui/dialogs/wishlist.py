@@ -56,6 +56,13 @@ class WishList(Dialog):
             delete_accelerator_callback=self.on_remove_wish,
             search_entry=self.search_entry,
             columns={
+                "enabled": {
+                    "column_type": "toggle",
+                    "title": _("Automatic Search"),
+                    "width": 0,
+                    "toggle_callback": self.on_toggle_wish,
+                    "hide_header": True
+                },
                 "wish": {
                     "column_type": "text",
                     "title": _("Search Term"),
@@ -63,13 +70,6 @@ class WishList(Dialog):
                     "expand_column": True,
                     "iterator_key": True,
                     "default_sort_type": "ascending"
-                },
-                "enabled": {
-                    "column_type": "toggle",
-                    "title": _("Automatic Search"),
-                    "width": 0,
-                    "toggle_callback": self.on_toggle_wish,
-                    "hide_header": True
                 },
                 "filtered": {
                     "column_type": "icon",
@@ -117,6 +117,7 @@ class WishList(Dialog):
 
         Accelerator("Escape", self.widget, self.on_escape_accelerator)
         Accelerator("<Primary>f", self.widget, self.on_search_accelerator)
+        Accelerator("Return", self.list_view.widget, self.on_edit_wish_accelerator)
 
         for event_name, callback in (
             ("add-wish", self.add_wish),
@@ -144,8 +145,8 @@ class WishList(Dialog):
             num_active_filters = search.num_active_filters
 
         self.list_view.add_row([
-            wish,
             search.auto_search,
+            wish,
             icon_name,
             time.strftime("%x", time.localtime(search.time_added)),
             search.time_added,
@@ -410,6 +411,12 @@ class WishList(Dialog):
         """Ctrl+F - Search wish terms."""
 
         self.search_entry.grab_focus()
+        return True
+
+    def on_edit_wish_accelerator(self, *_args):
+        """Return - Edit selected wish (overrides auto-search toggle)."""
+
+        self.on_edit_wish()
         return True
 
     def on_show(self, *_args):
