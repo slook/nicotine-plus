@@ -21,6 +21,17 @@ from pynicotine.search import ResultFilterMode
 class WishList(Dialog):
 
     FILTERED_ICON_NAME = "edit-find-replace-symbolic"
+    FILTER_LABELS = {
+        _("Include:"): 0,
+        _("Exclude:"): 1,
+        _("File Type:"): 6,
+        _("Size:"): 2,
+        _("Bitrate:"): 3,
+        _("Duration:"): 7,
+        _("Country Code:"): 5,
+        _("Upload Slot Available"): 4,
+        _("Public Files"): 8
+    }
 
     def __init__(self, application):
 
@@ -176,8 +187,36 @@ class WishList(Dialog):
             self.list_view.select_row(iterator)
 
     def on_custom_filters_tooltip(self, treeview, iterator):
+
+        wish = treeview.get_row_value(iterator, "wish")
         num_active_filters = treeview.get_row_value(iterator, "active_filters_data")
-        return _("Custom Filters Enabled (%(num)s Active)") % {"num": num_active_filters}
+        search = core.search.wishlist.get(wish)
+        tooltip_text = _("Custom Filters Enabled (%(num)s Active)") % {"num": num_active_filters}
+
+        if search is None:
+            return tooltip_text
+
+        for label, index in self.FILTER_LABELS.items():
+            try:
+                value = search.custom_filters[index]
+
+            except IndexError:
+                continue
+
+            if not value:
+                continue
+
+            tooltip_text += "\n"
+
+            if isinstance(value, bool):
+                value = ""
+
+            tooltip_text += _("• %(filter)s %(value)s") % {
+                "filter": label,
+                "value": value
+            }
+
+        return tooltip_text
 
     def on_toggle_wish(self, list_view, iterator):
 
