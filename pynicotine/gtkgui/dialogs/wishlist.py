@@ -176,14 +176,8 @@ class WishList(Dialog):
             self.list_view.select_row(iterator)
 
     def on_custom_filters_tooltip(self, treeview, iterator):
-
-        wish = treeview.get_row_value(iterator, "wish")
-        search = core.search.wishlist.get(wish)
-
-        if search is not None:
-            return _("Custom Filters Enabled (%(num)s Active)") % {"num": search.num_active_filters}
-
-        return None
+        num_active_filters = treeview.get_row_value(iterator, "active_filters_data")
+        return _("Custom Filters Enabled (%(num)s Active)") % {"num": num_active_filters}
 
     def on_toggle_wish(self, list_view, iterator):
 
@@ -270,9 +264,7 @@ class WishList(Dialog):
             old_enabled = self.list_view.get_row_value(iterator, "enabled")
             old_wish = self.list_view.get_row_value(iterator, "wish")
             filtered = bool(self.list_view.get_row_value(iterator, "filtered"))
-
-            search = core.search.wishlist.get(old_wish)
-            num_active_filters = search.num_active_filters if search is not None else 0
+            num_active_filters = max(0, self.list_view.get_row_value(iterator, "active_filters_data"))
 
             default_filters = _("Default filters") if config.sections["searches"]["enablefilters"] else _("No filters")
             custom_filters = _("Custom filters (%(num)s active)") % {"num": num_active_filters}
