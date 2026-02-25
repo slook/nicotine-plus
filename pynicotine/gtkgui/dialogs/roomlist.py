@@ -98,7 +98,6 @@ class RoomList(Dialog):
         self.room_invitations_toggle.connect("notify::active", self.on_toggle_room_invitations)
 
         Accelerator("<Primary>f", self.widget, self.on_search_accelerator)
-        Accelerator("Down", self.search_entry, self.on_focus_list_view_accelerator)
 
         for event_name, callback in (
             ("join-room", self.join_room),
@@ -396,13 +395,4 @@ class RoomList(Dialog):
         """Ctrl+F - Search rooms."""
 
         self.search_entry.grab_focus()
-        return True
-
-    def on_focus_list_view_accelerator(self, *_args):
-        """Down - Focus list view."""
-
-        if not self.list_container.get_visible():
-            return False
-
-        self.list_view.grab_focus()
         return True

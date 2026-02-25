@@ -80,7 +80,6 @@ class ChatHistory(Dialog):
         )
 
         Accelerator("<Primary>f", self.widget, self.on_search_accelerator)
-        Accelerator("Down", self.search_entry, self.on_focus_list_view_accelerator)
 
         self.load_users()
 
@@ -309,15 +308,6 @@ class ChatHistory(Dialog):
         """Ctrl+F - Search users."""
 
         self.search_entry.grab_focus()
-        return True
-
-    def on_focus_list_view_accelerator(self, *_args):
-        """Down - Focus list view."""
-
-        if not self.list_container.get_visible():
-            return False
-
-        self.list_view.grab_focus()
         return True
 
     def on_show(self, *_args):
