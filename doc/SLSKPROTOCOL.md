@@ -5,7 +5,7 @@
 
 # Soulseek Protocol Documentation
 
-[Last updated on July 8, 2026](https://github.com/nicotine-plus/nicotine-plus/commits/master/doc/SLSKPROTOCOL.md)
+[Last updated on July 28, 2026](https://github.com/nicotine-plus/nicotine-plus/commits/master/doc/SLSKPROTOCOL.md)
 
 Since the official Soulseek client and server is proprietary software, this
 documentation has been compiled thanks to years of reverse engineering efforts.
@@ -472,8 +472,7 @@ version `177` and any minor version number they choose for each project.
 ### Data Order
   - Send
     1.  **string** *username*
-    2.  **string** *password*  
-        A non-empty string is required
+    2.  **string** *password*
     3.  **uint32** *major version*  
         See [Major Versions](#major-versions)
     4.  **string** *hash*  
