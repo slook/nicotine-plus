@@ -692,9 +692,10 @@ class Search:
         public_files = core.shares.share_dbs["public_files"]
         buddy_files = core.shares.share_dbs["buddy_files"]
         trusted_files = core.shares.share_dbs["trusted_files"]
+        file_path_index = core.shares.file_path_index
 
         for index in islice(results, min(len(results), max_results)):
-            file_path = core.shares.file_path_index[index]
+            file_path = file_path_index[index]
 
             if file_path in public_files:
                 self._append_file_info(fileinfos, public_files[file_path])
@@ -871,7 +872,7 @@ class Search:
         if permission_level == PermissionLevel.BANNED:
             return
 
-        if "words" not in core.shares.share_dbs:
+        if "words" not in core.shares.share_dbs:  # or not core.shares.file_path_index:
             return
 
         word_index = core.shares.share_dbs["words"]

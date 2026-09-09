@@ -111,25 +111,27 @@ class Database:
 
     def __init__(self, file_path, overwrite=True):
 
-        folder_path = os.path.dirname(file_path)
-        mode = "ab+" if overwrite else "rb"
-
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
-
-        if overwrite and os.path.exists(file_path):
-            os.remove(file_path)
-
-        self._value_offsets = self._load_value_offsets(file_path, mode)
+        self._overwrite = overwrite
 
         if overwrite:
-            self._file_handle = open(file_path, mode)  # pylint: disable=consider-using-with
-        else:
-            with open(file_path, mode) as file_handle:
-                self._file_handle = mmap.mmap(file_handle.fileno(), length=0, access=mmap.ACCESS_READ)
+            folder_path = os.path.dirname(file_path)
 
-        self._file_offset = self._file_handle.seek(0, SEEK_END)
-        self._overwrite = overwrite
+            if not os.path.exists(folder_path):
+                os.makedirs(folder_path)
+
+            self._file_handle = open(file_path, "ab+")  # pylint: disable=consider-using-with
+            self._file_handle.truncate(0)
+            self._file_handle.write(self.FILE_SIGNATURE + bytes([self.VERSION]))
+
+            self._file_offset = self._file_handle.tell()
+            self._value_offsets = {}
+            return
+
+        with open(file_path, "rb") as file_handle:
+            self._file_handle = mmap.mmap(file_handle.fileno(), length=0, access=mmap.ACCESS_READ)
+
+        self._file_offset = self._file_handle.size()
+        self._value_offsets = self._parse_content(memoryview(self._file_handle), self._file_offset)
 
     def _parse_content(self, content, total_size):
 
@@ -152,25 +154,6 @@ class Database:
 
             value_offsets[key] = value_offset
             current_offset = (value_offset + value_length)
-
-        return value_offsets
-
-    def _load_value_offsets(self, file_path, mode):
-
-        value_offsets = {}
-
-        with open(file_path, mode) as file_handle:  # pylint: disable=unspecified-encoding
-            file_size = os.fstat(file_handle.fileno()).st_size
-
-            if not file_size:
-                file_handle.write(self.FILE_SIGNATURE)
-                file_handle.write(bytes([self.VERSION]))
-                return value_offsets
-
-            file_handle.seek(0)
-
-            with mmap.mmap(file_handle.fileno(), length=0, access=mmap.ACCESS_READ) as content:
-                value_offsets = self._parse_content(memoryview(content), file_size)
 
         return value_offsets
 
@@ -218,7 +201,8 @@ class Database:
     def close(self):
 
         if self._overwrite:
-            os.fsync(self._file_handle)
+            self._file_handle.flush()
+            os.fsync(self._file_handle.fileno())
 
         self._file_handle.close()
 
@@ -288,9 +272,11 @@ class Scanner:
                     self.create_file_path_index()
 
                     # Attempt to load remaining dbs
-                    Shares.load_shares(
-                        self.share_dbs, self.share_db_paths, destinations={"words", "lowercase_paths"}
-                    )
+                    Shares.load_shares(self.share_dbs, self.share_db_paths, destinations={"words", "lowercase_paths"})
+
+                    if not len(self.share_dbs["words"]) or not len(self.share_dbs["lowercase_paths"]):
+                        raise DatabaseError("Empty database file")
+
                     Shares.close_shares(self.share_dbs)
 
                 except DatabaseVersionError:
@@ -324,7 +310,7 @@ class Scanner:
                 # will also be attempted on startup due to the missing databases.
                 for destination in ("words", "lowercase_paths"):
                     share_db_path = self.share_db_paths[destination]
-                    Shares.remove_db_file(share_db_path)
+                    Database(encode_path(share_db_path), overwrite=True).close()  # Shares.remove_db_file(share_db_path)
 
                 # Scan shares
                 for permission_level in (
@@ -485,7 +471,7 @@ class Scanner:
 
             try:
                 share_db_path = self.share_db_paths[destination]
-                share_db = Shares.create_db_file(share_db_path)
+                share_db = Database(encode_path(share_db_path), overwrite=True)  # Shares.create_db_file(share_db_path)
                 share_db.update(source)
 
             finally:
@@ -822,11 +808,6 @@ class Shares:
         self._requested_share_times.clear()
 
     # Shares-related Actions #
-
-    @classmethod
-    def create_db_file(cls, db_path):
-        cls.remove_db_file(db_path)
-        return Database(encode_path(db_path))
 
     @staticmethod
     def remove_db_file(db_path):
