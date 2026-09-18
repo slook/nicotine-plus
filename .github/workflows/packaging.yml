@@ -47,7 +47,7 @@ jobs:
         run: python -m twine check --strict dist/*
 
   debian:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       - name: Checkout code
@@ -168,7 +168,7 @@ jobs:
       matrix:
         include:
           - arch: x86_64
-            platform: ubuntu-latest
+            platform: ubuntu-26.04
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout code
@@ -452,7 +452,7 @@ jobs:
       github.repository == 'nicotine-plus/nicotine-plus' &&
       github.event_name == 'workflow_dispatch' && inputs.create_release
     needs: [attestation, metadata]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     environment:
       name: pypi
