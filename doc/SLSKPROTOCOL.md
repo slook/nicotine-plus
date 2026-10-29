@@ -503,10 +503,10 @@ version `177` and any minor version number they choose for each project.
         4.  **bool** *is supporter*  
             If we have donated to Soulseek at some point in the past
     3.  If *success* is false
-        1.  **string** *rejection reason*
+        1.  **string** *rejection reason*  
             See [Login Rejection Reasons](#login-rejection-reasons)
         2.  If *rejection reason* is `INVALIDUSERNAME`
-            1.  **string** *rejection detail*
+            1.  **string** *rejection detail*  
                 See [Login Rejection Details](#login-rejection-details)
 
 
@@ -709,32 +709,27 @@ Requirements include:
         See [Room Types](#room-types). Type of room to create if nonexistent.
   - Receive
     1.  **string** *room*
-    2.  **uint32** *number of users in room*  
+    2.  **uint32** *number of users in room*, iterator:
         For private rooms, also contain owner and operators
-    3.  Iterate for *number of users*
         1.  **string** *username*
-    4.  **uint32** *number of statuses*
-    5.  Iterate for *number of statuses*
-        1.  **uint32** *status*
-    6.  **uint32** *number of user stats*
-    7.  Iterate for *number of user stats*
+    3.  **uint32** *number of statuses*, iterator:
+        1.  **uint32** *status*  
+            See [User Status Codes](#user-status-codes)
+    4.  **uint32** *number of user stats*, iterator:
         1.  **uint32** *avgspeed*
         2.  **uint32** *uploadnum*
         3.  **uint32** *unknown*
         4.  **uint32** *files*
         5.  **uint32** *dirs*
-    8.  **uint32** *number of slotsfull*
-    9.  Iterate for *number of slotsfull*
+    5.  **uint32** *number of slotsfull*, iterator:
         1.  **uint32** *slotsfull*  
             Boolean value `1` or `0`, see [UploadSlotsFull](#server-code-40)
-    10. **uint32** *number of user countries*
-    11. Iterate for *number of user countries*
+    6.  **uint32** *number of user countries*, iterator:
         1.  **string** *countrycode*  
             Uppercase country code
-    12. If private room
+    7.  If private room
         1.  **string** *owner*
-        2.  **uint32** *number of operators in room*
-        3.  Iterate for *number of operators*
+        2.  **uint32** *number of operators in room*, iterator:
             1.  **string** *operator*
 
 
@@ -1102,8 +1097,7 @@ recommendation or one of the similar ones instead.
     1.  **string** *recommendation*
   - Receive
     1.  **string** *recommendation*
-    2.  **uint32** *number of similar recommendations*
-    3.  Iterate for *number of similar recommendations*
+    2.  **uint32** *number of similar recommendations*, iterator:
         1.  **string** *similar recommendation*
 
 
@@ -1146,12 +1140,10 @@ The server sends us a list of personal recommendations and a number for each.
   - Send
     -   Empty Message
   - Receive
-    1.  **uint32** *number of total recommendations*
-    2.  Iterate for *number of total recommendations*
+    1.  **uint32** *number of total recommendations*, iterator:
         1.  **string** *recommendation*
         2.  **int32** *number of recommendations this recommendation has*
-    3.  **uint32** *number of total unrecommendations*
-    4.  Iterate for *number of total unrecommendations*
+    2.  **uint32** *number of total unrecommendations*, iterator:
         1.  **string** *unrecommendation*
         2.  **int32** *number of unrecommendations this unrecommendation has (negative)*
 
@@ -1176,8 +1168,7 @@ message for each missing item.
   - Send
     -   Empty Message
   - Receive
-    1.  **uint32** *number of own recommendations*
-    2.  Iterate for *number of own recommendations*
+    1.  **uint32** *number of own recommendations*, iterator:
         1.  **string** *recommendation*
 
 
@@ -1192,12 +1183,10 @@ The server sends us a list of global recommendations and a number for each.
   - Send
     -   Empty Message
   - Receive
-    1.  **uint32** *number of total recommendations*
-    2.  Iterate for *number of total recommendations*
+    1.  **uint32** *number of total recommendations*, iterator:
         1.  **string** *recommendation*
         2.  **int32** *number of recommendations this recommendation has*
-    3.  **uint32** *number of total unrecommendations*
-    4.  Iterate for *number of total unrecommendations*
+    2.  **uint32** *number of total unrecommendations*, iterator:
         1.  **string** *unrecommendation*
         2.  **int32** *number of unrecommendations this unrecommendation has (negative)*
 
@@ -1215,11 +1204,9 @@ with a list of interests.
     1.  **string** *username*
   - Receive
     1.  **string** *username*
-    2.  **uint32** *number of liked interests*
-    3.  Iterate for *number of liked interests*
+    2.  **uint32** *number of liked interests*, iterator:
         1.  **string** *interest*
-    4.  **uint32** *number of hated interests*
-    5.  Iterate for *number of hated interests*
+    3.  **uint32** *number of hated interests*, iterator:
         1.  **string** *interest*
 
 
@@ -1236,8 +1223,7 @@ user) if we have admin status on the server.
 
   - Send
     1.  **string** *command*
-    2.  **uint32** *number of command arguments*
-    3.  Iterate for *number of command arguments*
+    2.  **uint32** *number of command arguments*, iterator:
         1.  **string** *command argument*
   - Receive
     -   *No Message*
@@ -1326,26 +1312,19 @@ Requesting the room list yields a response containing the missing rooms.
   - Send
     -   Empty Message
   - Receive
-    1.  **uint32** *number of rooms*
-    2.  Iterate for *number of rooms*
+    1.  **uint32** *number of rooms*, iterator:
         1.  **string** *room*
-    3.  **uint32** *number of rooms*
-    4.  Iterate for *number of rooms*
+    2.  **uint32** *number of rooms,*, iterator:
         1.  **uint32** *number of users in room*
-    5.  **uint32** *number of owned private rooms*
-    6.  Iterate for *number of owned private rooms*
+    3.  **uint32** *number of owned private rooms*, iterator:
         1.  **string** *owned private room*
-    7.  **uint32** *number of owned private rooms*
-    8.  Iterate for *number of owned private rooms*
+    4.  **uint32** *number of owned private rooms*, iterator:
         1.  **uint32** *number of users in owned private room*
-    9.  **uint32** *number of private rooms (except owned)*
-    10. Iterate for *number of private rooms (except owned)*
+    5.  **uint32** *number of private rooms (except owned)*, iterator:
         1.  **string** *private room*
-    11. **uint32** *number of private rooms (except owned)*
-    12. Iterate for *number of private rooms (except owned)*
+    6.  **uint32** *number of private rooms (except owned)*, iterator:
         1.  **uint32** *number of users in private rooms (except owned)*
-    13. **uint32** *number of operated private rooms*
-    14. Iterate for *number of operated private rooms*
+    7.  **uint32** *number of operated private rooms*, iterator:
         1.  **string** *operated private room*
 
 
@@ -1403,25 +1382,21 @@ We send this to get a global list of all users online.
   - Send
     -   Empty Message
   - Receive
-    1.  **uint32** *number of users in room*
-    2.  Iterate for *number of users*
+    1.  **uint32** *number of users in room*, iterator:
         1.  **string** *username*
-    3.  **uint32** *number of userdata*
-    4.  Iterate for *number of users*
-        1.  **uint32** *status*
-    5.  **uint32** *number of userdata*
-    6.  Iterate for *number of userdata*
+    2.  **uint32** *number of statuses*, iterator:
+        1.  **uint32** *status*  
+            See [User Status Codes](#user-status-codes)
+    3.  **uint32** *number of userdata*, iterator:
         1.  **uint32** *avgspeed*
         2.  **uint32** *uploadnum*
         3.  **uint32** *unknown*
         4.  **uint32** *files*
         5.  **uint32** *dirs*
-    7.  **uint32** *number of slotsfull*
-    8.  Iterate for *number of slotsfull*
+    4.  **uint32** *number of slotsfull*, iterator:
         1.  **uint32** *slotsfull*  
             Boolean value `1` or `0`, see [UploadSlotsFull](#server-code-40)
-    9. **uint32** *number of usercountries*
-    10. Iterate for *number of usercountries*
+    5. **uint32** *number of usercountries*, iterator:
         1.  **string** *countrycode*  
             Uppercase country code
 
@@ -1461,8 +1436,7 @@ The server sends us a list of privileged users, a.k.a. users who have donated.
   - Send
     -   *No Message*
   - Receive
-    1.  **uint32** *number of users*
-    2.  Iterate *number of users*
+    1.  **uint32** *number of users*, iterator:
         1.  **string** *username*
 
 
@@ -1684,8 +1658,7 @@ from the server.
   - Send
     -   *No Message*
   - Receive
-    1.  **uint32** *number of parents*
-    2.  Iterate for *number of parents*
+    1.  **uint32** *number of parents*, iterator:
         1.  **string** *username*
         2.  **uint32** *ip*
         3.  **uint32** *port*
@@ -1733,8 +1706,7 @@ The server sends us a list of similar users related to our interests.
   - Send
     -   Empty Message
   - Receive
-    1.  **uint32** *number of users*
-    2.  Iterate for *number of user*
+    1.  **uint32** *number of users*, iterator:
         1.  **string** *username*
         2.  **uint32** *rating*
 
@@ -1752,8 +1724,7 @@ is usually present in the like/dislike list or an existing recommendation list.
     1.  **string** *item*
   - Receive
     1.  **string** *item*
-    2.  **uint32** *number of recommendations*
-    3.  Iterate for *number of recommendations*
+    2.  **uint32** *number of recommendations*, iterator:
         1.  **string** *recommendation*
         2.  **uint32** *number of recommendations for this recommendation (can be negative)*
 
@@ -1771,8 +1742,7 @@ is usually present in the like/dislike list or recommendation list.
     1.  **string** *item*
   - Receive
     1.  **string** *item*
-    2.  **uint32** *number of users*
-    3.  Iterate for *number of users*
+    2.  **uint32** *number of users*, iterator:
         1.  **string** *username*
 
 
@@ -1791,8 +1761,7 @@ walls.
     -   *No Message*
   - Receive
     1.  **string** *room*
-    2.  **uint32** *number of users*
-    3.  Iterate for *number of user*
+    2.  **uint32** *number of users*, iterator:
         1.  **string** *username*
         2.  **string** *tickers*
 
@@ -2061,8 +2030,7 @@ room we are in.
     -   *No Message*
   - Receive
     1.  **string** *room*
-    2.  **uint32** *number of members*
-    3.  Iterate for *number of members*
+    2.  **uint32** *number of members*, iterator:
         1.  **string** *members*
 
 
@@ -2288,8 +2256,7 @@ The server sends us a list of operators in a private room we are in.
     -   *No Message*
   - Receive
     1.  **string** *room*
-    2.  **uint32** *number of operators in room*
-    3.  Iterate for *number of operators*
+    2.  **uint32** *number of operators in room*, iterator:
         1.  **string** *operator*
 
 
@@ -2302,10 +2269,9 @@ Sends a broadcast private message to the given list of online users.
 ### Data Order
 
   - Send
-    1.  **uint32** *number of users*
-    2.  Iterate for *number of users*
+    1.  **uint32** *number of users*, iterator:
         1.  **string** *username*
-    3.  **string** *message*
+    2.  **string** *message*
   - Receive
     -   *No Message*
 
@@ -2371,8 +2337,7 @@ The server returns a list of related search terms for a search query.
     1.  **string** *query*
   - Receive
     1.  **string** *query*
-    2.  **uint32** *number of terms*
-    3.  Iterate for *number of term*
+    2.  **uint32** *number of terms*, iterator:
         1.  **string** *term*
         2.  **uint32** *score*
 
@@ -2390,8 +2355,7 @@ requests.
   - Send
     -   *No Message*
   - Receive
-    1.  **uint32** *number of phrases*
-    2.  Iterate for *number of phrases*
+    1.  **uint32** *number of phrases*, iterator:
         1.  **string** *phrase*
 
 
@@ -2632,70 +2596,58 @@ A peer responds with a list of shared files after we've sent a
 ### Data Order
 
   - Send
-    1.  **uint32** *number of directories*
-    2.  Iterate *number of directories*
+    1.  **uint32** *number of directories*, iterator:
         1.  **string** *directory*
-        2.  **uint32** *number of files*
-        3.  Iterate *number of files*
+        2.  **uint32** *number of files*, iterator:
             1.  **uint8** *code*  
                 Value is always `1`
             2.  **string** *filename*
             3.  **uint64** *file size*
             4.  **string** *file extension*
-            5.  **uint32** *number of attributes*
-            6.  Iterate for *number of attributes*
+            5.  **uint32** *number of attributes*, iterator:
+                1.  **uint32** *attribute code*  
+                    See [File Attribute Types](#file-attribute-types)
+                2.  **uint32** *attribute value*
+    2.  **uint32** *unknown*  
+        Official clients always send a value of `0`
+    3.  **uint32** *number of private directories*, iterator:
+        1.  **string** *directory*
+        2.  **uint32** *number of files*, iterator:
+            1.  **uint8** *code*  
+                Value is always `1`
+            2.  **string** *filename*
+            3.  **uint64** *file size*
+            4.  **string** *file extension*
+            5.  **uint32** *number of attributes*, iterator:
+                1.  **uint32** *attribute code*  
+                    See [File Attribute Types](#file-attribute-types)
+                2.  **uint32** *attribute value*
+    4. zlib compress
+  - Receive
+    1.  zlib decompress
+    2.  **uint32** *number of directories*, iterator:
+        1.  **string** *directory*
+        2.  **uint32** *number of files*, iterator:
+            1.  **uint8** *code*  
+                Value is always `1`
+            2.  **string** *filename*
+            3.  **uint64** *file size*
+            4.  **string** *file extension*
+            5.  **uint32** *number of attributes*, iterator:
                 1.  **uint32** *attribute code*  
                     See [File Attribute Types](#file-attribute-types)
                 2.  **uint32** *attribute value*
     3.  **uint32** *unknown*  
         Official clients always send a value of `0`
-    4.  **uint32** *number of private directories*
-    5.  Iterate *number of private directories*
+    4.  **uint32** *number of private directories*, iterator:
         1.  **string** *directory*
-        2.  **uint32** *number of files*
-        3.  Iterate *number of files*
+        2.  **uint32** *number of files, iterator:*
             1.  **uint8** *code*  
                 Value is always `1`
             2.  **string** *filename*
             3.  **uint64** *file size*
             4.  **string** *file extension*
-            5.  **uint32** *number of attributes*
-            6.  Iterate for *number of attributes*
-                1.  **uint32** *attribute code*  
-                    See [File Attribute Types](#file-attribute-types)
-                2.  **uint32** *attribute value*
-    6. zlib compress
-  - Receive
-    1.  zlib decompress
-    2.  **uint32** *number of directories*
-    3.  Iterate *number of directories*
-        1.  **string** *directory*
-        2.  **uint32** *number of files*
-        3.  Iterate *number of files*
-            1.  **uint8** *code*  
-                Value is always `1`
-            2.  **string** *filename*
-            3.  **uint64** *file size*
-            4.  **string** *file extension*
-            5.  **uint32** *number of attributes*
-            6.  Iterate for *number of attributes*
-                1.  **uint32** *attribute code*  
-                    See [File Attribute Types](#file-attribute-types)
-                2.  **uint32** *attribute value*
-    4.  **uint32** *unknown*  
-        Official clients always send a value of `0`
-    5.  **uint32** *number of private directories*
-    6.  Iterate *number of private directories*
-        1.  **string** *directory*
-        2.  **uint32** *number of files*
-        3.  Iterate *number of files*
-            1.  **uint8** *code*  
-                Value is always `1`
-            2.  **string** *filename*
-            3.  **uint64** *file size*
-            4.  **string** *file extension*
-            5.  **uint32** *number of attributes*
-            6.  Iterate for *number of attributes*
+            5.  **uint32** *number of attributes*, iterator:
                 1.  **uint32** *attribute code*  
                     See [File Attribute Types](#file-attribute-types)
                 2.  **uint32** *attribute value*
@@ -2733,70 +2685,62 @@ from original [FileSearch](#server-code-26), [UserSearch](#server-code-42) or
   - Send
     1.  **string** *username*
     2.  **uint32** *token*
-    3.  **uint32** *number of results*
-    4.  Iterate for *number of results*
+    3.  **uint32** *number of results*, iterator:
         1.  **uint8** *code*  
             Value is always `1`
         2.  **string** *filename*
         3.  **uint64** *file size*
         4.  **string** *file extension*  
             SoulseekNS requires `mp3` to show attributes
-        5.  **uint32** *number of attributes*
-        6.  Iterate for *number of attributes*
+        5.  **uint32** *number of attributes*, iterator:
             1.  **uint32** *attribute code*  
                 See [File Attribute Types](#file-attribute-types)
             2.  **uint32** *attribute value*
-    5.  **bool** *slotfree*
-    6.  **uint32** *avgspeed*
-    7.  **uint32** *queue length*
-    8.  **uint32** *unknown*
+    4.  **bool** *slotfree*
+    5.  **uint32** *avgspeed*
+    6.  **uint32** *queue length*
+    7.  **uint32** *unknown*
         Official clients always send a value of `0`
-    9.  **uint32** *number of privately shared results*
-    10. Iterate for *number of privately shared results*
+    8.  **uint32** *number of privately shared results*, iterator:
         1.  **uint8** *code*
             Value is always `1`
         2.  **string** *filename*
         3.  **uint64** *file size*
         4.  **string** *file extension*  
             SoulseekNS requires `mp3` to show attributes
-        5.  **uint32** *number of attributes*
-        6.  Iterate for *number of attributes*
+        5.  **uint32** *number of attributes*, iterator:
             1.  **uint32** *attribute code*  
                 See [File Attribute Types](#file-attribute-types)
             2.  **uint32** *attribute value*
-    11. zlib compress
+    9.  zlib compress
   - Receive
     1.  zlib decompress
     2.  **string** *username*
     3.  **uint32** *token*
-    4.  **uint32** *number of results*
-    5.  Iterate for *number of results*
+    4.  **uint32** *number of results*, iterator:
         1.  **uint8** *code*
             Value is always `1`
         2.  **string** *filename*
         3.  **uint64** *file size*
         4.  **string** *file extension*  
             Always blank from SoulseekQt clients
-        5.  **uint32** *number of attributes*
-        6.  Iterate for *number of attributes*
+        5.  **uint32** *number of attributes*, iterator:
             1.  **uint32** *attribute code*  
                 See [File Attribute Types](#file-attribute-types)
             2.  **uint32** *attribute value*
-    6.  **bool** *slotfree*
-    7.  **uint32** *avgspeed*
-    8.  **uint32** *queue length*
-    9.  **uint32** *unknown*  
+    5.  **bool** *slotfree*
+    6.  **uint32** *avgspeed*
+    7.  **uint32** *queue length*
+    8.  **uint32** *unknown*  
         Official clients always send a value of `0`
-    10.  **uint32** *number of privately shared results*
-    11.  Iterate for *number of privately shared results*
+    9.  **uint32** *number of privately shared results*, iterator:
          1.  **uint8** *code*  
              Value is always `1`
          2.  **string** *filename*
          3.  **uint64** *file size*
          4.  **string** *file extension*  
              Always blank from SoulseekQt clients
-         5.  **uint32** *number of attributes*
-         6.  Iterate for *number of attributes*
+         5.  **uint32** *number of attributes*, iterator:
              1.  **uint32** *attribute code*  
                  See [File Attribute Types](#file-attribute-types)
              2.  **uint32** *attribute value*
@@ -2880,40 +2824,34 @@ after we've sent a [FolderContentsRequest](#peer-code-36).
   - Send
     1.  **uint32** *token*
     2.  **string** *folder*
-    3.  **uint32** *number of folders*
-    4.  Iterate for *number of folders*
+    3.  **uint32** *number of folders*, iterator:
         1.  **string** *dir*
-        2.  **uint32** *number of files*
-        3.  Iterate *number of files*
+        2.  **uint32** *number of files*, iterator:
             1.  **uint8** *code*
                 Value is always `1`
             2.  **string** *file*
             3.  **uint64** *file size*
             4.  **string** *file extension*  
                 Always blank from SoulseekQt clients
-            5.  **uint32** *number of attributes*
-            6.  Iterate for *number of attributes*
+            5.  **uint32** *number of attributes*, iterator:
                 1.  **uint32** *attribute code*  
                     See [File Attribute Types](#file-attribute-types)
                 2.  **uint32** *attribute value*
-    5.  zlib compress
+    4.  zlib compress
   - Receive
     1.  zlib decompress
     2.  **uint32** *token*
     3.  **string** *folder*
-    4.  **uint32** *number of folders*
-    5.  Iterate for *number of folders*
+    4.  **uint32** *number of folders*, iterator:
         1.  **string** *dir*
-        2.  **uint32** *number of files*
-        3.  Iterate *number of files*
+        2.  **uint32** *number of files*, iterator:
             1.  **uint8** *code*  
                 Value is always `1`
             2.  **string** *file*
             3.  **uint64** *file size*
             4.  **string** *file extension*  
                 Always blank from SoulseekQt clients
-            5.  **uint32** *number of attributes*
-            6.  Iterate for *number of attributes*
+            5.  **uint32** *number of attributes*, iterator:
                 1.  **uint32** *attribute code*  
                     See [File Attribute Types](#file-attribute-types)
                 2.  **uint32** *attribute value*
